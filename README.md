@@ -1,6 +1,9 @@
 # ExAbby
 
 **ExAbby** is a minimal A/B testing library for Elixir/Phoenix.  
+
+*Note: This was created with my friends Claude and C. HatGPT. The code is working but not my favorite and feels a bit too spaghetti code and inconsistent for my liking. I plan to continue to refactor/change it as I come across issues.  There are also a ton of optimizations needed.*
+
 It supports:
 
 - Ecto-based storage (Experiments, Variations, Trials)
@@ -8,8 +11,17 @@ It supports:
 - Weighted randomization
 - Recording success events
 - LiveView helpers (checking `connected?/1` and storing assigned variation)
-- Admin LiveViews (optional)
+- Admin LiveViews 
 - Upserting experiments/variations with optional weight updates
+
+Coming in the future
+- ability to toggle variations by user or session for testing
+- armed bandits
+- statistical significance
+- better UX of admin screens
+- So much cleanup
+- Likely changes to the API.
+
 
 ---
 
