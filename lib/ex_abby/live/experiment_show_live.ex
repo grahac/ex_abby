@@ -175,6 +175,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
                       <th scope="col">Trials</th>
                       <th scope="col">Successes</th>
                       <th scope="col">Conversion Rate</th>
+                      <th scope="col">Successes per trial</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -194,7 +195,9 @@ defmodule ExAbby.Live.ExperimentShowLive do
                         <td class="stat-cell"><%= row.trials %></td>
                         <td class="stat-cell"><%= row.successes %></td>
                         <td class="stat-cell"><%= Float.round(row.conversion_rate * 100, 2) %>%</td>
-                      </tr>
+                  <td class="stat-cell"><%= Float.round(row.successes_per_trial, 2) %></td>
+
+                     </tr>
                     <% end %>
                   </tbody>
                 </table>

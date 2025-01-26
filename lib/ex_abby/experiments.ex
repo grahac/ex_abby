@@ -275,6 +275,12 @@ defmodule ExAbby.Experiments do
           successes: success_sum,
           conversion_rate:
             if trial_count > 0 do
+              min(success_sum, 1.0) / trial_count
+            else
+              0.0
+            end,
+          successes_per_trial:
+            if trial_count > 0 do
               success_sum / trial_count
             else
               0.0
