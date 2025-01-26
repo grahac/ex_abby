@@ -45,15 +45,15 @@ defmodule ExAbby do
       ExAbby.record_success(user, "experiment_name")
   """
   def record_success(%Plug.Conn{} = conn, experiment_name) do
-    ExAbby.Experiments.record_success_for_session(conn, experiment_name)
+    ExAbby.PhoenixHelper.record_success_for_session(conn, experiment_name)
+  end
+
+  def record_success(%Phoenix.LiveView.Socket{} = socket, experiment_name) do
+    ExAbby.LiveViewHelper.record_success_for_session_lv(socket, experiment_name)
   end
 
   def record_success(%{id: user_id} = user, experiment_name) when is_integer(user_id) do
     ExAbby.Experiments.record_success_for_user(user, experiment_name)
-  end
-
-  def record_success(%Phoenix.LiveView.Socket{} = socket, session, experiment_name) do
-    ExAbby.LiveViewHelper.record_success_for_session_lv(socket, session, experiment_name)
   end
 
   # Admin/setup functions
