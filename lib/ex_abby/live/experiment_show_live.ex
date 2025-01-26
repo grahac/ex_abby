@@ -7,7 +7,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
   use Phoenix.Component
 
   def mount(%{"id" => id}, _session, socket) do
-    experiment = Experiments.get_experiment(String.to_integer(id))
+    experiment = Experiments.get_experiment_by_id(String.to_integer(id))
 
     if experiment do
       summary = Experiments.experiment_summary(experiment.name)
@@ -25,72 +25,199 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto p-6">
-      <h2 class="text-2xl font-bold mb-4">Experiment: <%= @experiment.name %></h2>
-      <p class="mb-6 text-gray-600"><%= @experiment.description %></p>
+    <style>
 
-      <h3 class="text-xl font-semibold mb-4">Variations</h3>
-      <div class="overflow-x-auto mb-8">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trials</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Successes</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conversion Rate</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-          <%= for row <- @summary do %>
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap"><%= row.variation_name %></td>
-              <td class="px-6 py-4 whitespace-nowrap"><%= row.trials %></td>
-              <td class="px-6 py-4 whitespace-nowrap"><%= row.successes %></td>
-              <td class="px-6 py-4 whitespace-nowrap"><%= Float.round(row.conversion_rate * 100, 2) %>%</td>
-            </tr>
-          <% end %>
-          </tbody>
-        </table>
+      .back-button {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        background-color: #93c5fd;
+        color: #1e3a8a;
+        text-decoration: none;
+        border-radius: 0.375rem;
+        margin-bottom: 1rem;
+      }
+
+      .back-button:hover {
+        background-color: #60a5fa;
+      }
+      .experiment-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1.5rem;
+      }
+
+      .experiment-header {
+        margin-bottom: 2rem;
+      }
+
+      .experiment-title {
+        font-size: 1.875rem;
+        font-weight: bold;
+        color: #1e3a8a;
+      }
+
+      .experiment-description {
+        margin-top: 0.5rem;
+        font-size: 1.125rem;
+        color: #2563eb;
+      }
+
+      .experiment-table {
+        width: 100%;
+        border-collapse: collapse;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border-radius: 0.5rem;
+      }
+
+      .experiment-table th {
+        background-color: #eff6ff;
+        padding: 0.75rem 1.5rem;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #1d4ed8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .experiment-table td {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .experiment-table tbody tr:hover {
+        background-color: #eff6ff;
+      }
+
+      .weight-input {
+        width: 5rem;
+        padding: 0.375rem;
+        border: 1px solid #93c5fd;
+        border-radius: 0.375rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+
+      .weight-input:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+      }
+
+      .variation-name {
+        font-weight: 500;
+        color: #1e3a8a;
+      }
+
+      .stat-cell {
+        color: #2563eb;
+      }
+
+    .form-actions {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: flex-start;
+      }
+
+      .save-button {
+        background-color: #2563eb;
+        color: white;
+        padding: 0.625rem 0.875rem;
+        border-radius: 0.375rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        border: none;
+      }
+
+      .save-button:hover {
+        background-color: #3b82f6;
+      }
+
+      .success-message {
+        margin-top: 1rem;
+        padding: 1rem;
+        background-color: #eff6ff;
+        border: 1px solid #bfdbfe;
+        color: #1e40af;
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+      }
+
+      .success-icon {
+        height: 1.25rem;
+        width: 1.25rem;
+        color: #60a5fa;
+        margin-right: 0.5rem;
+      }
+    </style>
+
+    <div class="experiment-container">
+      <.link patch={"index"} class="back-button">← Back to Experiments</.link>
+
+      <div class="experiment-header">
+        <div class="experiment-title-section">
+          <h2 class="experiment-title"><%= @experiment.name %></h2>
+          <p class="experiment-description"><%= @experiment.description %></p>
+        </div>
       </div>
 
-      <h3 class="text-xl font-semibold mb-4">Edit Variation Weights</h3>
-      <h3 class="text-xl font-semibold mb-4">Edit Variation Weights</h3>
-    <form phx-submit="save_weights" class="space-y-4">
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variation</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            <%= for {v_id, name, w} <- @weights_form do %>
-              <tr>
-                <td class="px-6 py-4 whitespace-nowrap"><%= name %></td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <input type="number"
-                    name={"weights[weight_#{v_id}]"}
-                    value={w}
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    class="mt-1 block w-32 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  />
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-      <button type="submit" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-        Save
-      </button>
-    </form>
+      <div class="experiment-content">
+        <form phx-submit="save_weights">
+          <div class="table-container">
+            <div class="table-wrapper">
+              <div class="table-box">
+                <table class="experiment-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Weight</th>
+                      <th scope="col">Variation</th>
+                      <th scope="col">Trials</th>
+                      <th scope="col">Successes</th>
+                      <th scope="col">Conversion Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+                      <tr>
+                        <td>
+                          <input type="number"
+                            name={"weights[weight_#{v_id}]"}
+                            value={w}
+                            step="0.01"
+                            min="0"
+                            max="1"
+                            class="weight-input"
+                          />
+                        </td>
+                        <td class="variation-name"><%= row.variation_name %></td>
+                        <td class="stat-cell"><%= row.trials %></td>
+                        <td class="stat-cell"><%= row.successes %></td>
+                        <td class="stat-cell"><%= Float.round(row.conversion_rate * 100, 2) %>%</td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
-    <%= if @updated? do %>
-      <div class="mt-4 p-4 bg-green-100 text-green-700 rounded-md">Weights updated!</div>
-    <% end %>
+          <div class="form-actions">
+            <button type="submit" class="save-button">
+              Save Weights
+            </button>
+          </div>
+        </form>
+
+        <%= if @updated? do %>
+          <div class="success-message">
+            <svg class="success-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            Weights updated successfully
+          </div>
+        <% end %>
+      </div>
     </div>
     """
   end
@@ -107,11 +234,13 @@ defmodule ExAbby.Live.ExperimentShowLive do
           {variation.name, String.to_float(weight_str)}
       end)
 
+    # Here we explicitly pass true to update weights
     {:ok, _experiment} =
       Experiments.upsert_experiment_and_update_weights(
         experiment.name,
         experiment.description,
-        parsed
+        parsed,
+        true
       )
 
     summary = Experiments.experiment_summary(experiment.name)
