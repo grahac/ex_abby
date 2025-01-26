@@ -21,17 +21,34 @@ defmodule ExAbby.LiveViewHelper do
   """
   def fetch_session_exp_variation_lv(socket, session, experiment_name) do
     if Phoenix.LiveView.connected?(socket) do
-      session_id = Map.get(session, @session_key)
+      # Get existing trials map or initialize empty map
+      existing_trials = Map.get(socket.assigns, :ex_abby_trials, %{})
 
-      if session_id do
-        # Re-use the function from PhoenixHelper that takes a session_id
-        variation = get_session_exp_variation_by_id(session_id, experiment_name)
-        assign(socket, :ab_variation, variation)
-      else
+      # Return early if we already have this experiment's variation
+      if Map.has_key?(existing_trials, experiment_name) do
         socket
+      else
+        session_id = Map.get(session, @session_key)
+
+        if session_id do
+          # Store session_id in assigns
+          socket = assign(socket, :ex_abby_session_id, session_id)
+          # Re-use the function from PhoenixHelper that takes a session_id
+          variation = get_session_exp_variation_by_id(session_id, experiment_name)
+          # Store just the variation name for simpler access
+          updated_trials = Map.put(existing_trials, experiment_name, variation.name)
+
+          assign(socket, :ex_abby_trials, updated_trials)
+        else
+          socket
+          |> assign(:ex_abby_session_id, nil)
+          |> assign(:ex_abby_trials, %{})
+        end
       end
     else
       socket
+      |> assign(:ex_abby_session_id, nil)
+      |> assign(:ex_abby_trials, %{})
     end
   end
 
@@ -44,9 +61,9 @@ defmodule ExAbby.LiveViewHelper do
   3. Calls the function that increments success_count
   4. Returns {:ok, trial} or {:error, reason}
   """
-  def record_success_for_session_lv(socket, session, experiment_name) do
+  def record_success_for_session_lv(socket, experiment_name) do
     if Phoenix.LiveView.connected?(socket) do
-      if session_id = Map.get(session, @session_key) do
+      if session_id = socket.assigns[:ex_abby_session_id] do
         PhoenixHelper.record_success_for_session_id(session_id, experiment_name)
       else
         {:error, :no_session_id}
