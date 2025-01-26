@@ -1,0 +1,13 @@
+<div class="max-w-md text-blue-900 mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
+  <h1 class="text-2xl font-bold mb-4">Button Color Test</h1>
+
+  <%= if @variation do %>
+    <.link
+      href={~p"/button-test/convert"}
+      method="post"
+      class={get_button_class(@variation)}
+    >
+      Click Me!
+    </.link>
+    <p class="mt-4 text-gray-600">Current variation: {@variation}</p>  <% end %>
+</div>

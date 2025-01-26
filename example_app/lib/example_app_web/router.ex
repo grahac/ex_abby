@@ -1,9 +1,11 @@
 defmodule ExampleAppWeb.Router do
   use ExampleAppWeb, :router
+  import ExAbby.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
+    plug ExAbby.SessionPlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {ExampleAppWeb.Layouts, :root}
     plug :protect_from_forgery
@@ -18,6 +20,20 @@ defmodule ExampleAppWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/button-test-live", ButtonTestLive
+    get "/button-test", ButtonTest.ButtonTestController, :index
+    post "/button-test/convert", ButtonTest.ButtonTestController, :convert
+  end
+
+  scope "/admin" do
+    # MAKE SURE THIS IS PROTECTED IN A REAL APP
+    pipe_through :browser
+
+    ex_abby_admin_routes()
+  end
+
+  scope "/", ExampleAppWeb do
+    pipe_through :browser
   end
 
   # Other scopes may use custom stacks.

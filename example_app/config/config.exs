@@ -11,6 +11,9 @@ config :example_app,
   ecto_repos: [ExampleApp.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :ex_abby,
+  repo: ExampleApp.Repo
+
 # Configures the endpoint
 config :example_app, ExampleAppWeb.Endpoint,
   url: [host: "localhost"],
