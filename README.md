@@ -161,23 +161,33 @@ defmodule MyAppWeb.LandingLive do
   def render(assigns) do
     ~H"""
     <h2>Landing Page</h2>
-    <p>Variation: <%= @ab_variation && @ab_variation.name %></p>
+    <%= case @ex_abby_trials["landing_page_test"] do %>
+      <% "variation_a" -> %>
+        <div>Variation A Content</div>
+      <% "variation_b" -> %>
+        <div>Variation B Content</div>
+      <% _ -> %>
+        <div>Original Content</div>
+    <% end %>
     <button phx-click="convert">Click me</button>
     """
   end
 
   def handle_event("convert", _params, socket) do
     case ExAbby.record_success(socket, socket.assigns.my_session, "landing_page_test") do
-      {:ok, _trial} ->
-        # success
-        {:noreply, socket}
-      {:error, reason} ->
+      {:ok, _trial} -> {:noreply, socket}
+      {:error, reason} -> 
         IO.inspect(reason, label: "AB Test error")
         {:noreply, socket}
     end
   end
 end
 ```
+
+The variations are stored in `@ex_abby_trials` as a map where:
+- Keys are experiment names (e.g., `"landing_page_test"`)
+- Values are variation names (e.g., `"original"`, `"variation_a"`)
+This makes it easy to pattern match or conditionally render content based on the variation name.
 
 This way, your LiveView handles session-based trials **without** needing a `conn`.
 
@@ -190,17 +200,12 @@ If you’re using the **admin LiveViews** included in `ex_abby`, add something l
 ```elixir
 defmodule MyAppWeb.Router do
   use MyAppWeb, :router
-  import ExAbby.Router  # if you have a macro for auto routing
+  import ExAbby.Router  
 
   scope "/admin", MyAppWeb do
     pipe_through [:browser, :admin_auth]
 
-    # Option 1: manually define
-    live "/ab_tests", ExAbby.Live.ExperimentIndexLive
-    live "/ab_tests/:id", ExAbby.Live.ExperimentShowLive
-
-    # Option 2: if you have a macro:
-    # ex_abby_admin_routes()
+    ex_abby_admin_routes()
   end
 end
 ```
