@@ -12,18 +12,30 @@ defmodule ExAbby.PhoenixHelper do
   Returns {conn, variation}.
   """
   def get_session_exp_variation(conn, experiment_name) do
-    session_id = Plug.Conn.get_session(conn, @session_key)
+    # Get existing trials map or initialize empty map
+    existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
 
-    {conn, session_id} =
-      if is_nil(session_id) do
-        new_id = generate_session_id()
-        {Plug.Conn.put_session(conn, @session_key, new_id), new_id}
-      else
-        {conn, session_id}
-      end
+    # Return early if we already have this experiment's variation
+    if Map.has_key?(existing_trials, experiment_name) do
+      {conn, %{name: Map.get(existing_trials, experiment_name)}}
+    else
+      session_id = Plug.Conn.get_session(conn, @session_key)
 
-    variation = get_session_exp_variation_by_id(session_id, experiment_name)
-    {conn, variation}
+      {conn, session_id} =
+        if is_nil(session_id) do
+          new_id = generate_session_id()
+          {Plug.Conn.put_session(conn, @session_key, new_id), new_id}
+        else
+          {conn, session_id}
+        end
+
+      variation = get_session_exp_variation_by_id(session_id, experiment_name)
+      # Store just the variation name for simpler access
+      updated_trials = Map.put(existing_trials, experiment_name, variation.name)
+      conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
+
+      {conn, variation.name}
+    end
   end
 
   @doc """
@@ -40,8 +52,7 @@ defmodule ExAbby.PhoenixHelper do
   Gets or creates a variation for a session ID.
   """
   def get_session_exp_variation_by_id(session_id, experiment_name) do
-    experiment = Experiments.get_or_create_experiment(experiment_name)
-    {variation, _status} = Experiments.get_or_create_session_trial(experiment.id, session_id)
+    {variation, _status} = Experiments.get_or_create_session_trial(experiment_name, session_id)
     variation
   end
 
