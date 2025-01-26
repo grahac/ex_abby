@@ -15,8 +15,8 @@ defmodule ExAbby.Experiments do
   Gets a single experiment with its variations.
   Returns nil if the experiment does not exist.
   """
-  def get_experiment(experiment_name) do
-    repo().one(from(e in Experiment, where: e.name == ^experiment_name))
+  def get_experiment_by_id(id) do
+    repo().get(Experiment, id)
     |> repo().preload(:variations)
   end
 
@@ -76,20 +76,34 @@ defmodule ExAbby.Experiments do
   @doc """
   Creates or updates an experiment with variations.
   """
-  def upsert_experiment_and_update_weights(experiment_name, description, variations)
+  def upsert_experiment_and_update_weights(
+        experiment_name,
+        description,
+        variations,
+        update_weights \\ true
+      )
       when is_list(variations) do
     case get_experiment_by_name(experiment_name) do
       nil ->
         create_new_experiment_with_variations(experiment_name, description, variations)
 
       experiment ->
-        Enum.each(variations, fn {var_name, weight} ->
-          if variation = get_variation_by_name(experiment.id, var_name) do
-            variation
-            |> Changeset.change(%{weight: weight})
-            |> repo().update()
-          end
-        end)
+        if update_weights do
+          Enum.each(variations, fn {var_name, weight} ->
+            if variation = get_variation_by_name(experiment.id, var_name) do
+              variation
+              |> Changeset.change(%{weight: weight})
+              |> repo().update()
+            end
+          end)
+        else
+          # Just create any new variations without updating existing weights
+          Enum.each(variations, fn {var_name, weight} ->
+            unless get_variation_by_name(experiment.id, var_name) do
+              create_variation(experiment, var_name, weight)
+            end
+          end)
+        end
 
         {:ok, experiment}
     end
@@ -99,7 +113,7 @@ defmodule ExAbby.Experiments do
   Gets or creates a trial for a session.
   """
   def get_or_create_session_trial(experiment_name, session_id) do
-    experiment = get_experiment(experiment_name)
+    experiment = get_experiment_by_name(experiment_name)
 
     case experiment do
       nil ->
@@ -133,7 +147,7 @@ defmodule ExAbby.Experiments do
   Gets or creates a trial for a user.
   """
   def get_or_create_user_trial(experiment_name, user_id) do
-    experiment = get_experiment(experiment_name)
+    experiment = get_experiment_by_name(experiment_name)
 
     case experiment do
       nil ->
@@ -199,7 +213,10 @@ defmodule ExAbby.Experiments do
 
     changes =
       if trial.success_count == 0 do
-        %{success_count: updated_count, success_date: DateTime.utc_now()}
+        %{
+          success_count: updated_count,
+          success_date: DateTime.utc_now() |> DateTime.truncate(:second)
+        }
       else
         %{success_count: updated_count}
       end
@@ -260,7 +277,7 @@ defmodule ExAbby.Experiments do
             if trial_count > 0 do
               success_sum / trial_count
             else
-              0
+              0.0
             end
         }
       end)
