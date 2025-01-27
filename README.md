@@ -35,10 +35,10 @@ Coming in the future
 1. [Installation](#installation)
 2. [Configuration](#configuration)
 3. [Migrations](#migrations)
-4. [Usage in Controllers](#usage-in-controllers)
-5. [Usage in LiveView](#usage-in-liveview)
-6. [Optional Admin Routes](#optional-admin-routes)
-7. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+4. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+5. [Usage in Controllers](#usage-in-controllers)
+6. [Usage in LiveView](#usage-in-liveview)
+7. [Optional Admin Routes](#optional-admin-routes)
 8. [Runtime vs. Compile-Time Repo](#runtime-vs-compile-time-repo)
 9. [Troubleshooting](#troubleshooting)
 
@@ -107,7 +107,6 @@ defmodule MyApp.Repo.Migrations.CreateExAbbyTables do
   use Ecto.Migration
 
   def up do
-    # ExAbby.Migrations is your module that creates the tables
     ExAbby.Migrations.create_tables()
   end
 
@@ -123,6 +122,109 @@ Then run:
 mix ecto.migrate
 ```
 
+## Upserting Experiments and Updating Weights
+
+If you have a function like:
+
+```elixir
+ExAbby.upsert_experiment_and_update_weights(
+  "landing_page_test",
+  "Testing different landing pages",
+  [
+    {"Original", 1.0},
+    {"Variation A", 1.0},
+    {"Variation B", 2.0}
+  ],
+  success1_label: "Signup",
+  success2_label: "Purchase"
+)
+
+```
+
+
+Then:
+
+- If `"landing_page_test"` **does not exist**, the library creates a new experiment with that name + description, and 3 variations with the specified weights.  
+- If the experiment **already exists**, we do **not** change its weights. We update all the other info if
+- you can optionally add labels to label success. This is just for readability and is optional.
+---
+
+
+## Seeding Experiments
+
+Create a file `priv/repo/seeds/experiments.exs` to define your experiments:
+
+```elixir
+experiments = [
+  {
+    "button_color_test",
+    "Testing different button colors for signup",
+    [
+      {"control", 0.33},
+      {"green", 0.33}, 
+      {"blue", 0.33}
+    ],
+    [success1_label: "Signup", success2_label: "Purchase", update_weights: false]
+  }
+]
+
+# Seed or update experiments without modifying weights
+Enum.each(experiments, fn {name, description, variations, opts} ->
+  ExAbby.upsert_experiment_and_update_weights(name, description, variations, opts)
+end)
+```
+
+Then in your `priv/repo/seeds.exs`, add:
+
+```elixir
+Code.require_file("seeds/experiments.exs", __DIR__)
+```
+
+You can run the seeds in different ways:
+
+### Development:
+```bash
+mix run priv/repo/seeds.exs
+```
+
+## Production Deployment
+
+ExAbby experiments can be seeded automatically during your migration process.
+
+1. **Add Release Module Function**
+
+In `lib/your_app/release.ex`:
+```elixir
+defmodule YourApp.Release do
+  # ... existing release module code ...
+
+  def seed_experiments do
+    load_app()
+    repo = Application.get_env(:ex_abby, :repo)
+    
+    {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
+      seed_path = Application.app_dir(@app, "priv/repo/seeds/experiments.exs")
+      Code.eval_file(seed_path)
+    end)
+  end
+end
+```
+
+2. **Update Migration Script**
+
+Your existing `rel/overlays/bin/migrate` script will now run both migrations and seeds:
+```bash
+#!/bin/sh
+
+./memoir eval "Memoir.Release.migrate"
+./memoir eval "Memoir.Release.seed_experiments"
+```
+
+Now your experiments will be automatically seeded whenever you run migrations using:
+```bash
+bin/migrate
+```
+This will create or update your experiments while preserving existing weights for any experiments that already exist.
 ---
 ## Usage in Controllers
 
@@ -133,11 +235,11 @@ In a controller action (e.g., `PageController`):
 ```elixir
 def index(conn, _params) do
   # Single variation example
-  {conn, variation} = ExAbby.get_variation(conn, "landing_page_test")
+  {conn, _variation} = ExAbby.get_variation(conn, "landing_page_test")
   
   # Multiple variations example
-  {conn, variations} = ExAbby.get_variations(conn, ["landing_page_test", "button_color_test"])
-  render(conn, "index.html", ab_variations: variations)
+  {conn, _variations} = ExAbby.get_variations(conn, ["landing_page_test", "button_color_test"])
+  render(conn, "index.html")
 end
 
 def record_conversion(conn, _params) do
@@ -283,85 +385,7 @@ end
    - Quick links to view individual experiments
 
 
-## Upserting Experiments and Updating Weights
-
-If you have a function like:
-
-```elixir
-ExAbby.upsert_experiment_and_update_weights(
-  "landing_page_test",
-  "Testing different landing pages",
-  [
-    {"Original", 1.0},
-    {"Variation A", 1.0},
-    {"Variation B", 2.0}
-  ],
-  success1_label: "Signup",
-  success2_label: "Purchase"
-)
-
-```
-
-
-Then:
-
-- If `"landing_page_test"` **does not exist**, the library creates a new experiment with that name + description, and 3 variations with the specified weights.  
-- If the experiment **already exists**, we do **not** change its weights. We update all the other info if
-- you can optionally add labels to label success. This is just for readability and is optional.
 ---
-
-
-## Seeding Experiments
-
-Create a file `priv/repo/seeds/experiments.exs` to define your experiments:
-
-```elixir
-experiments = [
-  {
-    "button_color_test",
-    "Testing different button colors for signup",
-    [
-      {"control", 0.33},
-      {"green", 0.33}, 
-      {"blue", 0.33}
-    ],
-    [success1_label: "Signup", success2_label: "Purchase", update_weights: false]
-  },
-  {
-    "landing_page_test",
-    "Testing different landing page layouts",
-    [
-      {"original", 0.5},
-      {"new_design", 0.5}
-    ],
-    [success1_label: "Email Signup", update_weights: false]
-  }
-  # Add more experiments as needed
-]
-
-# Seed or update experiments without modifying weights
-Enum.each(experiments, fn {name, description, variations, opts} ->
-  ExAbby.upsert_experiment_and_update_weights(name, description, variations, opts)
-end)
-```
-
-Then in your `priv/repo/seeds.exs`, add:
-
-```elixir
-Code.require_file("seeds/experiments.exs", __DIR__)
-```
-
-Run the seeds with:
-
-```bash
-mix run priv/repo/seeds.exs
-```
-
-This will create or update your experiments while preserving existing weights for any experiments that already exist.
-
----
-
-
 
 ## Runtime vs. Compile-Time Repo
 
@@ -384,14 +408,11 @@ All Ecto calls do `repo().insert(...)`, `repo().update(...)`, etc. This approach
 
 ## Troubleshooting
 
-- **`warning: nil.update(...) is undefined`**  
-  This usually indicates a pipeline might receive `nil`. Use an explicit check or `case` before calling `repo().update(...)`.
-
 - **`No Ecto repo configured for :ex_abby`**  
   Add `config :ex_abby, repo: MyApp.Repo` in your host app’s `config.exs`.
 
-- **Double assignment in LiveView**  
-  If you see double counts, check whether you’re calling the assignment logic in `mount/3` **before** `connected?(socket)`. You can gate it with `if connected?(socket) do ... end`.
+- **No Experiment Found**  
+  If you see a warning for no experiment found, make sure you have seeded the database wtih experiments nd variations.
 
 ---
 
