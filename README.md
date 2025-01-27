@@ -41,7 +41,8 @@ Coming in the future
 
 7. [Usage in Controllers](#usage-in-controllers)
 8. [Usage in LiveView](#usage-in-liveview)
-9. [Troubleshooting](#troubleshooting)
+9. [Production Deployment](#production-deployment)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -186,46 +187,6 @@ You can run the seeds in different ways:
 ```bash
 mix run priv/repo/seeds.exs
 ```
-
-## Production Deployment
-
-ExAbby experiments can be seeded automatically during your migration process.
-
-1. **Add Release Module Function**
-
-In `lib/your_app/release.ex`:
-```elixir
-defmodule YourApp.Release do
-  # ... existing release module code ...
-
-  def seed_experiments do
-    load_app()
-    repo = Application.get_env(:ex_abby, :repo)
-    
-    {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
-      seed_path = Application.app_dir(@app, "priv/repo/seeds/experiments.exs")
-      Code.eval_file(seed_path)
-    end)
-  end
-end
-```
-
-2. **Update Migration Script**
-
-Your existing `rel/overlays/bin/migrate` script will now run both migrations and seeds:
-```bash
-#!/bin/sh
-
-./memoir eval "Memoir.Release.migrate"
-./memoir eval "Memoir.Release.seed_experiments"
-```
-
-Now your experiments will be automatically seeded whenever you run migrations using:
-```bash
-bin/migrate
-```
-This will create or update your experiments while preserving existing weights for any experiments that already exist.
----
 
 ---
 ### Session Setup
@@ -415,6 +376,46 @@ Available options:
 - `:amount` - Optional numeric value to track with the success (default: 0.0)
 - `:success_type` - Type of success to record, either `:success1` or `:success2` (default: `:success1`)
 
+---
+
+## Production Deployment
+
+ExAbby experiments can be seeded automatically during your migration process.
+
+1. **Add Release Module Function**
+
+In `lib/your_app/release.ex`:
+```elixir
+defmodule YourApp.Release do
+  # ... existing release module code ...
+
+  def seed_experiments do
+    load_app()
+    repo = Application.get_env(:ex_abby, :repo)
+    
+    {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
+      seed_path = Application.app_dir(@app, "priv/repo/seeds/experiments.exs")
+      Code.eval_file(seed_path)
+    end)
+  end
+end
+```
+
+2. **Update Migration Script**
+
+Your existing `rel/overlays/bin/migrate` script will now run both migrations and seeds:
+```bash
+#!/bin/sh
+
+./memoir eval "Memoir.Release.migrate"
+./memoir eval "Memoir.Release.seed_experiments"
+```
+
+Now your experiments will be automatically seeded whenever you run migrations using:
+```bash
+bin/migrate
+```
+This will create or update your experiments while preserving existing weights for any experiments that already exist.
 ---
 
 ## Troubleshooting
