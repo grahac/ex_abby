@@ -138,9 +138,7 @@ defmodule ExAbby.Experiments do
         if update_weights do
           Enum.each(variations, fn {var_name, weight} ->
             if variation = get_variation_by_name(experiment.id, var_name) do
-              variation
-              |> Changeset.change(%{weight: weight})
-              |> repo().update()
+              update_weight(variation, weight)
             end
           end)
         else
@@ -154,6 +152,12 @@ defmodule ExAbby.Experiments do
 
         {:ok, experiment}
     end
+  end
+
+  def update_weight(variation, weight) do
+    variation
+    |> Changeset.change(%{weight: weight})
+    |> repo().update()
   end
 
   @doc """

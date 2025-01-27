@@ -7,17 +7,10 @@ defmodule ExAbby.Live.ExperimentShowLive do
   use Phoenix.Component
 
   def mount(%{"id" => id}, _session, socket) do
-    experiment = Experiments.get_experiment_by_id(String.to_integer(id))
+    socket = load_experiment(socket, String.to_integer(id))
 
-    if experiment do
-      summary = Experiments.experiment_summary(experiment.name)
-
-      {:ok,
-       socket
-       |> assign(:experiment, experiment)
-       |> assign(:summary, summary)
-       |> assign(:updated?, false)
-       |> assign(:weights_form, build_weights_form(experiment.variations))}
+    if(socket.assigns[:experiment]) do
+      {:ok, socket}
     else
       {:ok, push_navigate(socket, to: "/")}
     end
@@ -247,26 +240,38 @@ defmodule ExAbby.Live.ExperimentShowLive do
   def handle_event("save_weights", %{"weights" => weights_params}, socket) do
     experiment = socket.assigns.experiment
 
-    parsed =
-      weights_params
-      |> Enum.map(fn
-        {"weight_" <> var_id_str, weight_str} ->
-          var_id = String.to_integer(var_id_str)
-          variation = Enum.find(experiment.variations, &(&1.id == var_id))
-          {variation.name, String.to_float(weight_str)}
-      end)
+    Enum.each(weights_params, fn {"weight_" <> var_id_str, weight_str} ->
+      var_id = String.to_integer(var_id_str)
+      variation = Enum.find(experiment.variations, &(&1.id == var_id))
 
-    # Here we explicitly pass true to update weights
-    {:ok, _experiment} =
-      Experiments.upsert_experiment_and_update_weights(
-        experiment.name,
-        experiment.description,
-        parsed,
-        true
-      )
+      weight =
+        if String.starts_with?(weight_str, "."),
+          do: String.to_float("0" <> weight_str),
+          else: String.to_float(weight_str)
 
-    summary = Experiments.experiment_summary(experiment.name)
-    {:noreply, assign(socket, :summary, summary) |> assign(:updated?, true)}
+      Experiments.update_weight(variation, weight)
+    end)
+
+    {:noreply,
+     socket
+     |> load_experiment(socket.assigns.experiment.id)
+     |> assign(:updated?, true)}
+  end
+
+  defp load_experiment(socket, id) do
+    experiment = Experiments.get_experiment_by_id(id)
+
+    if experiment do
+      summary = Experiments.experiment_summary(experiment.name)
+
+      socket
+      |> assign(:experiment, experiment)
+      |> assign(:summary, summary)
+      |> assign(:updated?, false)
+      |> assign(:weights_form, build_weights_form(experiment.variations))
+    else
+      socket
+    end
   end
 
   defp show_success2?(experiment, summary) do
