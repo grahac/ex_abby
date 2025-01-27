@@ -33,6 +33,40 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
+  Lists experiments that have trials for the given user_id.
+  """
+  def list_experiments_with_user_trials(user_id) when not is_nil(user_id) do
+    query =
+      from(e in Experiment,
+        distinct: true,
+        join: t in Trial,
+        on: t.experiment_id == e.id,
+        where: t.user_id == ^user_id,
+        order_by: [desc: e.inserted_at],
+        preload: [:variations]
+      )
+
+    repo().all(query)
+  end
+
+  @doc """
+  Lists experiments that have trials for the given session_id.
+  """
+  def list_experiments_with_session_trials(session_id) when not is_nil(session_id) do
+    query =
+      from(e in Experiment,
+        distinct: true,
+        join: t in Trial,
+        on: t.experiment_id == e.id,
+        where: t.session_id == ^session_id,
+        order_by: [desc: e.inserted_at],
+        preload: [:variations]
+      )
+
+    repo().all(query)
+  end
+
+  @doc """
   Gets or creates an experiment by name.
   """
   def get_or_create_experiment(name) do
@@ -433,17 +467,54 @@ defmodule ExAbby.Experiments do
     end
   end
 
-  # ------------------------------------------------------------------
-  # Private Functions
-  # ------------------------------------------------------------------
+  @doc """
+  Gets all trials for a user, grouped by experiment.
+  """
+  def get_user_trials(user_id) do
+    repo().all(
+      from(t in Trial,
+        where: t.user_id == ^user_id,
+        preload: [:experiment, :variation]
+      )
+    )
+  end
 
-  defp get_trial_by_user(experiment_id, user_id) do
+  @doc """
+  Gets all session trials for a user, grouped by experiment.
+  """
+  def get_session_trials(session_id) do
+    repo().all(
+      from(t in Trial,
+        where: t.session_id == ^session_id,
+        preload: [:experiment, :variation]
+      )
+    )
+  end
+
+  @doc """
+  Updates the variation for a specific trial.
+  """
+  def update_trial_variation(trial_id, variation_id) do
+    trial = repo().get(Trial, trial_id)
+
+    if trial do
+      trial
+      |> Ecto.Changeset.change(%{variation_id: variation_id})
+      |> repo().update()
+    end
+  end
+
+  def get_trial_by_user(experiment_id, user_id) do
     repo().one(
       from(t in Trial,
         where: t.experiment_id == ^experiment_id and t.user_id == ^user_id
       )
     )
   end
+
+  # ------------------------------------------------------------------
+  # Private Functions
+  # ------------------------------------------------------------------
 
   defp create_new_experiment_with_variations(name, description, variations, opts) do
     exp_changeset =

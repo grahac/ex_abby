@@ -19,6 +19,7 @@ defmodule ExAbby.LiveViewHelper do
   4. Assigns `:ab_variation` in the socket
   5. Returns the updated socket
   """
+
   def fetch_session_exp_variation_lv(socket, session, experiment_name) do
     if Phoenix.LiveView.connected?(socket) do
       # Get existing trials map or initialize empty map
@@ -28,28 +29,32 @@ defmodule ExAbby.LiveViewHelper do
       if Map.has_key?(existing_trials, experiment_name) do
         socket
       else
-        session_id = Map.get(session, @session_key)
+        socket = save_session_data(socket, session)
 
-        if session_id do
-          # Store session_id in assigns
-          socket = assign(socket, :ex_abby_session_id, session_id)
+        if socket.assigns.ex_abby_session_id do
           # Re-use the function from PhoenixHelper that takes a session_id
-          variation = get_session_exp_variation_by_id(session_id, experiment_name)
+          variation =
+            get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name)
+
           # Store just the variation name for simpler access
           updated_trials = Map.put(existing_trials, experiment_name, variation.name)
 
           assign(socket, :ex_abby_trials, updated_trials)
         else
           socket
-          |> assign(:ex_abby_session_id, nil)
-          |> assign(:ex_abby_trials, %{})
         end
       end
     else
-      socket
-      |> assign(:ex_abby_session_id, nil)
-      |> assign(:ex_abby_trials, %{})
+      save_session_data(socket, session)
     end
+  end
+
+  def save_session_data(socket, session) do
+    session_id = Map.get(session, @session_key)
+
+    socket
+    |> assign(:ex_abby_session_id, session_id)
+    |> assign(:ex_abby_trials, %{})
   end
 
   @doc """
