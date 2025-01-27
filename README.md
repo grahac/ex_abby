@@ -31,15 +31,14 @@ Coming in the future
 ---
 
 ## Table of Contents
-
 1. [Installation](#installation)
 2. [Configuration](#configuration)
-3. [Migrations](#migrations)
-4. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
-5. [Usage in Controllers](#usage-in-controllers)
-6. [Usage in LiveView](#usage-in-liveview)
-7. [Optional Admin Routes](#optional-admin-routes)
-8. [Runtime vs. Compile-Time Repo](#runtime-vs-compile-time-repo)
+3. [Session Setup](#session-setup)
+4. [Migrations](#migrations)
+5. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+6. [Usage in Controllers](#usage-in-controllers)
+7. [Usage in LiveView](#usage-in-liveview)
+8. [Optional Admin Routes](#optional-admin-routes)
 9. [Troubleshooting](#troubleshooting)
 
 ---
@@ -85,6 +84,32 @@ config :ex_abby,
 Where `MyApp.Repo` is your **Ecto Repo** module.
 
 ---
+### Session Setup
+
+To enable session-based A/B testing, add `ExAbby.SessionPlug` to your endpoint or router pipeline:
+
+
+```elixir
+# In  your router pipeline (recommended):
+pipeline :browser do
+  # ... other plugs ...
+  plug ExAbby.SessionPlug
+end
+```
+
+# In lib/your_app_web/endpoint.ex
+plug Plug.Session,
+  store: :cookie,
+  key: "_your_app_key",
+  signing_salt: "your_signing_salt"
+
+plug ExAbby.SessionPlug
+
+
+
+This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests.
+
+
 
 ## Migrations
 
@@ -384,25 +409,6 @@ end
    - Experiment details and descriptions
    - Quick links to view individual experiments
 
-
----
-
-## Runtime vs. Compile-Time Repo
-
-`ex_abby` uses a **runtime** lookup for the Ecto Repo:
-
-```elixir
-defp repo() do
-  case Application.get_env(:ex_abby, :repo) do
-    nil -> 
-      raise "No Ecto repo configured for :ex_abby! Please set config :ex_abby, repo: MyApp.Repo"
-    repo_mod -> 
-      repo_mod
-  end
-end
-```
-
-All Ecto calls do `repo().insert(...)`, `repo().update(...)`, etc. This approach allows the library to **compile** even if `config :ex_abby, :repo` is not set or is `nil`. At **runtime**, if you call an A/B test function without configuring a real repo, you get a clear error.
 
 ---
 
