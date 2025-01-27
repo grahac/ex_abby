@@ -61,10 +61,10 @@ defmodule ExAbby.LiveViewHelper do
   3. Calls the function that increments success_count
   4. Returns {:ok, trial} or {:error, reason}
   """
-  def record_success_for_session_lv(socket, experiment_name) do
+  def record_success_for_session_lv(socket, experiment_name, opts \\ []) do
     if Phoenix.LiveView.connected?(socket) do
       if session_id = socket.assigns[:ex_abby_session_id] do
-        PhoenixHelper.record_success_for_session_id(session_id, experiment_name)
+        PhoenixHelper.record_success_for_session_id(session_id, experiment_name, opts)
       else
         {:error, :no_session_id}
       end

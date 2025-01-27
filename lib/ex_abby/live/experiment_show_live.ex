@@ -168,39 +168,48 @@ defmodule ExAbby.Live.ExperimentShowLive do
             <div class="table-wrapper">
               <div class="table-box">
                 <table class="experiment-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Weight</th>
-                      <th scope="col">Variation</th>
-                      <th scope="col">Trials</th>
-                      <th scope="col">Successes</th>
-                      <th scope="col">Conversion Rate</th>
-                      <th scope="col">Successes per trial</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
-                      <tr>
-                        <td>
-                          <input type="number"
-                            name={"weights[weight_#{v_id}]"}
-                            value={w}
-                            step="0.01"
-                            min="0"
-                            max="1"
-                            class="weight-input"
-                          />
-                        </td>
-                        <td class="variation-name"><%= row.variation_name %></td>
-                        <td class="stat-cell"><%= row.trials %></td>
-                        <td class="stat-cell"><%= row.successes %></td>
-                        <td class="stat-cell"><%= Float.round(row.conversion_rate * 100, 2) %>%</td>
-                  <td class="stat-cell"><%= Float.round(row.successes_per_trial, 2) %></td>
-
-                     </tr>
-                    <% end %>
-                  </tbody>
-                </table>
+      <thead>
+        <tr>
+          <th scope="col">Weight</th>
+          <th scope="col">Variation</th>
+          <th scope="col">Trials</th>
+          <th scope="col"><%= @experiment.success1_label || "Success" %></th>
+          <th scope="col"><%= @experiment.success1_label || "Success" %> Amount</th>
+          <th scope="col"><%= @experiment.success1_label || "Success" %> Rate</th>
+          <%= if show_success2?(@experiment, @summary) do %>
+            <th scope="col"><%= @experiment.success2_label %></th>
+            <th scope="col"><%= @experiment.success2_label %> Amount</th>
+            <th scope="col"><%= @experiment.success2_label %> Rate</th>
+          <% end %>
+        </tr>
+      </thead>
+      <tbody>
+        <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+          <tr>
+            <td>
+              <input type="number"
+                name={"weights[weight_#{v_id}]"}
+                value={w}
+                step="0.01"
+                min="0"
+                max="1"
+                class="weight-input"
+              />
+            </td>
+            <td class="variation-name"><%= row.variation_name %></td>
+            <td class="stat-cell"><%= row.trials %></td>
+            <td class="stat-cell"><%= row.success1.count %></td>
+            <td class="stat-cell"><%= Float.round(row.success1.amount, 2) %></td>
+            <td class="stat-cell"><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+            <%= if show_success2?(@experiment, @summary) do %>
+              <td class="stat-cell"><%= row.success2.count %></td>
+              <td class="stat-cell"><%= Float.round(row.success2.amount, 2) %></td>
+              <td class="stat-cell"><%= Float.round(row.success2.rate * 100, 2) %>%</td>
+            <% end %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
               </div>
             </div>
           </div>
@@ -248,6 +257,12 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
     summary = Experiments.experiment_summary(experiment.name)
     {:noreply, assign(socket, :summary, summary) |> assign(:updated?, true)}
+  end
+
+  defp show_success2?(experiment, summary) do
+    has_label = experiment.success2_label && experiment.success2_label != ""
+    has_conversions = Enum.any?(summary, fn row -> row.success2.count > 0 end)
+    has_label || has_conversions
   end
 
   defp build_weights_form(variations) do

@@ -17,6 +17,8 @@ defmodule ExAbby.Migrations do
     # exabby_experiments
     create table(:exabby_experiments) do
       add(:name, :string, null: false)
+      add(:success1_label, :string)
+      add(:success2_label, :string)
       add(:description, :string)
       timestamps()
     end
@@ -39,9 +41,15 @@ defmodule ExAbby.Migrations do
       add(:variation_id, references(:exabby_variations, on_delete: :delete_all), null: false)
       add(:user_id, :integer)
       add(:session_id, :string)
-      add(:success_count, :integer, default: 0)
-      # new date field for success
-      add(:success_date, :utc_datetime)
+
+      add(:success1_amount, :float, default: 0.0)
+      add(:success1_count, :integer, default: 0)
+      add(:success1_date, :utc_datetime, null: true)
+
+      add(:success2_amount, :float, default: 0.0)
+      add(:success2_count, :integer, default: 0)
+      add(:success2_date, :utc_datetime, null: true)
+
       timestamps()
     end
 

@@ -80,14 +80,27 @@ defmodule ExAbby.Experiments do
         experiment_name,
         description,
         variations,
-        update_weights \\ true
+        opts \\ []
       )
       when is_list(variations) do
+    update_weights = Keyword.get(opts, :update_weights, true)
+    success1_label = Keyword.get(opts, :success1_label)
+    success2_label = Keyword.get(opts, :success2_label)
+
     case get_experiment_by_name(experiment_name) do
       nil ->
-        create_new_experiment_with_variations(experiment_name, description, variations)
+        create_new_experiment_with_variations(experiment_name, description, variations, opts)
 
       experiment ->
+        # Update experiment attributes
+        experiment
+        |> Experiment.changeset(%{
+          description: description,
+          success1_label: success1_label,
+          success2_label: success2_label
+        })
+        |> repo().update()
+
         if update_weights do
           Enum.each(variations, fn {var_name, weight} ->
             if variation = get_variation_by_name(experiment.id, var_name) do
@@ -99,7 +112,7 @@ defmodule ExAbby.Experiments do
         else
           # Just create any new variations without updating existing weights
           Enum.each(variations, fn {var_name, weight} ->
-            unless get_variation_by_name(experiment.id, var_name) do
+            unless get_variation_by_name(experiment.name, var_name) do
               create_variation(experiment, var_name, weight)
             end
           end)
@@ -117,6 +130,7 @@ defmodule ExAbby.Experiments do
 
     case experiment do
       nil ->
+        Logger.warning("Experiment not found #{experiment_name}")
         {:error, :experiment_not_found}
 
       experiment ->
@@ -151,6 +165,8 @@ defmodule ExAbby.Experiments do
 
     case experiment do
       nil ->
+        Logger.warning("Experiment not found #{experiment_name}")
+
         {:error, :experiment_not_found}
 
       experiment ->
@@ -170,7 +186,7 @@ defmodule ExAbby.Experiments do
   Records a success for a trial.
   """
 
-  def record_success_for_user(experiment_name, user_id) do
+  def record_success_for_user(experiment_name, user_id, opts \\ []) do
     case get_or_create_user_trial(experiment_name, user_id) do
       {:error, :experiment_not_found} ->
         Logger.warning("Failed to record success: Experiment '#{experiment_name}' not found")
@@ -184,7 +200,7 @@ defmodule ExAbby.Experiments do
         {:error, :user_id_nil}
 
       {variation, status} ->
-        record_success(variation)
+        record_success(variation, opts)
         {:ok, {variation, status}}
     end
   end
@@ -208,17 +224,51 @@ defmodule ExAbby.Experiments do
     end
   end
 
-  def record_success(trial) do
-    updated_count = trial.success_count + 1
+  @success_types [:success1, :success2]
+
+  @doc """
+  Records a success for a trial.
+
+  ## Options
+    * `:amount` - Optional numeric value to track with the success (default: 0.0)
+    * `:success_type` - Type of success to record, either `:success1` or `:success2` (default: `:success1`)
+  """
+  def record_success(trial, opts \\ []) when is_list(opts) do
+    amount =
+      case Keyword.get(opts, :amount, 0.0) do
+        amount when is_binary(amount) ->
+          case Float.parse(amount) do
+            {num, _} -> num
+            :error -> 0.0
+          end
+
+        amount ->
+          amount || 0.0
+      end
+
+    success_type = Keyword.get(opts, :success_type, :success1)
+
+    if success_type not in @success_types do
+      raise ArgumentError,
+            "success_type must be one of #{inspect(@success_types)}, got: #{inspect(success_type)}"
+    end
+
+    {count_field, date_field, amount_field} = get_success_fields(success_type)
+    current_count = Map.get(trial, count_field, 0)
+    current_amount = Map.get(trial, amount_field, 0.0)
 
     changes =
-      if trial.success_count == 0 do
+      if current_count == 0 do
         %{
-          success_count: updated_count,
-          success_date: DateTime.utc_now() |> DateTime.truncate(:second)
+          count_field => current_count + 1,
+          date_field => DateTime.utc_now() |> DateTime.truncate(:second),
+          amount_field => current_amount + amount
         }
       else
-        %{success_count: updated_count}
+        %{
+          count_field => current_count + 1,
+          amount_field => current_amount + amount
+        }
       end
 
     {:ok, _trial} =
@@ -227,9 +277,12 @@ defmodule ExAbby.Experiments do
       |> repo().update()
   end
 
+  defp get_success_fields(:success1), do: {:success1_count, :success1_date, :success1_amount}
+  defp get_success_fields(:success2), do: {:success2_count, :success2_date, :success2_amount}
+
   @doc """
   Returns a summary of results for a given experiment:
-  variations, total trials, successes, conversion rate, etc.
+  variations, total trials, and details for both success types including counts, amounts, and rates.
 
   Example output:
   [
@@ -237,11 +290,20 @@ defmodule ExAbby.Experiments do
       variation_id: 1,
       variation_name: "Variation A",
       trials: 100,
-      successes: 20,
-      conversion_rate: 0.20
+      success1: %{
+        count: 20,
+        amount: 150.5,
+        rate: 0.20,
+        amount_per_trial: 1.505
+      },
+      success2: %{
+        count: 15,
+        amount: 75.25,
+        rate: 0.15,
+        amount_per_trial: 0.7525
+      }
     }, ...
   ]
-  You could also compute p-values between variations here.
   """
   def experiment_summary(experiment_name) do
     experiment = get_experiment_by_name(experiment_name)
@@ -255,36 +317,43 @@ defmodule ExAbby.Experiments do
           )
         )
 
-      # for each variation, count trials and sum success_count
       Enum.map(variations, fn v ->
-        {trial_count, success_sum} =
+        {trial_count, success1_sum, success1_amount, success2_sum, success2_amount} =
           repo().one(
             from(t in Trial,
               where: t.variation_id == ^v.id,
-              select: {count(t.id), sum(t.success_count)}
+              select: {
+                count(t.id),
+                sum(t.success1_count),
+                sum(t.success1_amount),
+                sum(t.success2_count),
+                sum(t.success2_amount)
+              }
             )
           )
 
         trial_count = trial_count || 0
-        success_sum = success_sum || 0
+        success1_sum = success1_sum || 0
+        success1_amount = success1_amount || 0.0
+        success2_sum = success2_sum || 0
+        success2_amount = success2_amount || 0.0
 
         %{
           variation_id: v.id,
           variation_name: v.name,
           trials: trial_count,
-          successes: success_sum,
-          conversion_rate:
-            if trial_count > 0 do
-              min(success_sum, 1.0) / trial_count
-            else
-              0.0
-            end,
-          successes_per_trial:
-            if trial_count > 0 do
-              success_sum / trial_count
-            else
-              0.0
-            end
+          success1: %{
+            count: success1_sum,
+            amount: success1_amount,
+            rate: if(trial_count > 0, do: success1_sum / trial_count, else: 0.0),
+            amount_per_trial: if(trial_count > 0, do: success1_amount / trial_count, else: 0.0)
+          },
+          success2: %{
+            count: success2_sum,
+            amount: success2_amount,
+            rate: if(trial_count > 0, do: success2_sum / trial_count, else: 0.0),
+            amount_per_trial: if(trial_count > 0, do: success2_amount / trial_count, else: 0.0)
+          }
         }
       end)
     else
@@ -376,10 +445,15 @@ defmodule ExAbby.Experiments do
     )
   end
 
-  defp create_new_experiment_with_variations(name, description, variations) do
+  defp create_new_experiment_with_variations(name, description, variations, opts) do
     exp_changeset =
       %Experiment{}
-      |> Experiment.changeset(%{name: name, description: description})
+      |> Experiment.changeset(%{
+        name: name,
+        description: description,
+        success1_label: Keyword.get(opts, :success1_label),
+        success2_label: Keyword.get(opts, :success2_label)
+      })
 
     case repo().insert(exp_changeset) do
       {:ok, experiment} ->

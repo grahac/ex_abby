@@ -14,10 +14,20 @@ defmodule ExampleAppWeb.ButtonTestLive do
       <h1 class="text-2xl font-bold mb-4">Button Color Test</h1>
 
       <%= if @ex_abby_trials["button_color_test"] do %>
-        <button phx-click="convert" class={get_button_class(@ex_abby_trials["button_color_test"])}>
-          Click Me!
-        </button>
-        <p class="mt-4 text-gray-600">Current variation: {@ex_abby_trials["button_color_test"]}</p>
+        <div class="space-y-4">
+          <button phx-click="convert" class={get_button_class(@ex_abby_trials["button_color_test"])}>
+            Click Me!
+          </button>
+
+          <button
+            phx-click="convert_with_amount"
+            class={get_button_class(@ex_abby_trials["button_color_test"])}
+          >
+            Click for $100!
+          </button>
+
+          <p class="mt-4 text-gray-600">Current variation: {@ex_abby_trials["button_color_test"]}</p>
+        </div>
       <% end %>
     </div>
     """
@@ -27,6 +37,19 @@ defmodule ExampleAppWeb.ButtonTestLive do
     case ExAbby.record_success(socket, "button_color_test") do
       {:ok, _trial} ->
         {:noreply, put_flash(socket, :info, "Conversion recorded!")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to record conversion")}
+    end
+  end
+
+  def handle_event("convert_with_amount", _params, socket) do
+    case ExAbby.record_success(socket, "button_color_test",
+           amount: 100.0,
+           success_type: :success2
+         ) do
+      {:ok, _trial} ->
+        {:noreply, put_flash(socket, :info, "Conversion with $100 recorded!")}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Failed to record conversion")}

@@ -59,25 +59,25 @@ defmodule ExAbby.PhoenixHelper do
   @doc """
   Records a success for the session-based experiment.
   """
-  def record_success_for_session(conn, experiment_name) do
+  def record_success_for_session(conn, experiment_name, opts \\ []) do
     session_id = Plug.Conn.get_session(conn, @session_key)
 
     if is_nil(session_id) do
       {:error, :no_session_id}
     else
-      record_success_for_session_id(session_id, experiment_name)
+      record_success_for_session_id(session_id, experiment_name, opts)
     end
   end
 
   @doc """
   Records a success for a specific session ID.
   """
-  def record_success_for_session_id(session_id, experiment_name) do
+  def record_success_for_session_id(session_id, experiment_name, opts \\ []) do
     with experiment when not is_nil(experiment) <-
            Experiments.get_experiment_by_name(experiment_name),
          trial when not is_nil(trial) <-
            Experiments.get_trial_by_session(experiment.id, session_id) do
-      Experiments.record_success(trial)
+      Experiments.record_success(trial, opts)
       {:ok, trial}
     else
       nil -> {:error, :not_found}
