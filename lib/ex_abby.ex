@@ -107,6 +107,11 @@ defmodule ExAbby do
   end
 
   # Admin/setup functions
-  defdelegate upsert_experiment_and_update_weights(experiment_name, description, variations),
-    to: ExAbby.Experiments
+  defdelegate upsert_experiment_and_update_weights(
+                experiment_name,
+                description,
+                variations,
+                opts \\ []
+              ),
+              to: ExAbby.Experiments
 end
