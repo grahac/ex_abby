@@ -352,41 +352,58 @@ defmodule ExAbby.Experiments do
         )
 
       Enum.map(variations, fn v ->
-        {trial_count, success1_sum, success1_amount, success2_sum, success2_amount} =
+        stats =
           repo().one(
             from(t in Trial,
               where: t.variation_id == ^v.id,
-              select: {
-                count(t.id),
-                sum(t.success1_count),
-                sum(t.success1_amount),
-                sum(t.success2_count),
-                sum(t.success2_amount)
+              select: %{
+                trial_count: count(t.id),
+                success1_sum: coalesce(sum(t.success1_count), 0),
+                success1_amount: coalesce(sum(t.success1_amount), 0.0),
+                success1_multi: count(fragment("CASE WHEN ? > 1 THEN 1 END", t.success1_count)),
+                success1_unique:
+                  count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success1_count, t.id)),
+                success2_sum: coalesce(sum(t.success2_count), 0),
+                success2_amount: coalesce(sum(t.success2_amount), 0.0),
+                success2_multi: count(fragment("CASE WHEN ? > 1 THEN 1 END", t.success2_count)),
+                success2_unique:
+                  count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success2_count, t.id))
               }
             )
-          )
-
-        trial_count = trial_count || 0
-        success1_sum = success1_sum || 0
-        success1_amount = success1_amount || 0.0
-        success2_sum = success2_sum || 0
-        success2_amount = success2_amount || 0.0
+          ) ||
+            %{
+              trial_count: 0,
+              success1_sum: 0,
+              success1_amount: 0.0,
+              success1_multi: 0,
+              success1_unique: 0,
+              success2_sum: 0,
+              success2_amount: 0.0,
+              success2_multi: 0,
+              success2_unique: 0
+            }
 
         %{
           variation_id: v.id,
           variation_name: v.name,
-          trials: trial_count,
+          trials: stats.trial_count,
           success1: %{
-            count: success1_sum,
-            amount: success1_amount,
-            rate: if(trial_count > 0, do: success1_sum / trial_count, else: 0.0),
-            amount_per_trial: if(trial_count > 0, do: success1_amount / trial_count, else: 0.0)
+            count: stats.success1_sum,
+            unique_count: stats.success1_unique,
+            amount: stats.success1_amount,
+            rate:
+              if(stats.trial_count > 0, do: stats.success1_multi / stats.trial_count, else: 0.0),
+            amount_per_trial:
+              if(stats.trial_count > 0, do: stats.success1_amount / stats.trial_count, else: 0.0)
           },
           success2: %{
-            count: success2_sum,
-            amount: success2_amount,
-            rate: if(trial_count > 0, do: success2_sum / trial_count, else: 0.0),
-            amount_per_trial: if(trial_count > 0, do: success2_amount / trial_count, else: 0.0)
+            count: stats.success2_sum,
+            unique_count: stats.success2_unique,
+            amount: stats.success2_amount,
+            rate:
+              if(stats.trial_count > 0, do: stats.success2_multi / stats.trial_count, else: 0.0),
+            amount_per_trial:
+              if(stats.trial_count > 0, do: stats.success2_amount / stats.trial_count, else: 0.0)
           }
         }
       end)

@@ -133,6 +133,11 @@ defmodule ExAbby.Live.ExperimentShowLive do
         background-color: #3b82f6;
       }
 
+      .stat-cell-secondary {
+      color: #2563eb;
+      background-color: #f8fafc;
+      }
+
       .success-message {
         margin-top: 1rem;
         padding: 1rem;
@@ -174,40 +179,45 @@ defmodule ExAbby.Live.ExperimentShowLive do
           <th scope="col">Variation</th>
           <th scope="col">Trials</th>
           <th scope="col"><%= @experiment.success1_label || "Success" %></th>
+          <th scope="col"><%= @experiment.success1_label || "Success" %> Unique</th>
           <th scope="col"><%= @experiment.success1_label || "Success" %> Amount</th>
           <th scope="col"><%= @experiment.success1_label || "Success" %> Rate</th>
           <%= if show_success2?(@experiment, @summary) do %>
             <th scope="col"><%= @experiment.success2_label %></th>
+            <th scope="col"><%= @experiment.success2_label %> Unique</th>
             <th scope="col"><%= @experiment.success2_label %> Amount</th>
             <th scope="col"><%= @experiment.success2_label %> Rate</th>
           <% end %>
         </tr>
       </thead>
+
       <tbody>
-        <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
-          <tr>
-            <td>
-              <input type="number"
-                name={"weights[weight_#{v_id}]"}
-                value={w}
-                step="0.01"
-                min="0"
-                max="1"
-                class="weight-input"
-              />
-            </td>
-            <td class="variation-name"><%= row.variation_name %></td>
-            <td class="stat-cell"><%= row.trials %></td>
-            <td class="stat-cell"><%= row.success1.count %></td>
-            <td class="stat-cell"><%= Float.round(row.success1.amount, 2) %></td>
-            <td class="stat-cell"><%= Float.round(row.success1.rate * 100, 2) %>%</td>
-            <%= if show_success2?(@experiment, @summary) do %>
-              <td class="stat-cell"><%= row.success2.count %></td>
-              <td class="stat-cell"><%= Float.round(row.success2.amount, 2) %></td>
-              <td class="stat-cell"><%= Float.round(row.success2.rate * 100, 2) %>%</td>
-            <% end %>
-          </tr>
+      <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+      <tr>
+        <td>
+          <input type="number"
+            name={"weights[weight_#{v_id}]"}
+            value={w}
+            step="0.01"
+            min="0"
+            max="1"
+            class="weight-input"
+          />
+        </td>
+        <td class="variation-name"><%= row.variation_name %></td>
+        <td class="stat-cell"><%= row.trials %></td>
+        <td class="stat-cell"><%= row.success1.count %></td>
+        <td class="stat-cell"><%= row.success1.unique_count %></td>
+        <td class="stat-cell"><%= Float.round(row.success1.amount, 2) %></td>
+        <td class="stat-cell"><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+        <%= if show_success2?(@experiment, @summary) do %>
+          <td class="stat-cell-secondary"><%= row.success2.count %></td>
+          <td class="stat-cell-secondary"><%= row.success2.unique_count %></td>
+          <td class="stat-cell-secondary"><%= Float.round(row.success2.amount, 2) %></td>
+          <td class="stat-cell-secondary"><%= Float.round(row.success2.rate * 100, 2) %>%</td>
         <% end %>
+      </tr>
+      <% end %>
       </tbody>
     </table>
               </div>
