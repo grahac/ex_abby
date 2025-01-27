@@ -7,35 +7,52 @@ defmodule ExAbby.PhoenixHelper do
   @session_key "ex_abby_session_id"
 
   @doc """
-  Retrieves or assigns a variation for a session-based experiment,
-  using the session_id found in `conn`.
-  Returns {conn, variation}.
+  Retrieves or assigns variations for multiple session-based experiments.
+  Returns {conn, variations_map} where variations_map is %{experiment_name => variation_name}.
   """
-  def get_session_exp_variation(conn, experiment_name) do
+  def get_session_exp_variations(conn, experiment_names) when is_list(experiment_names) do
     # Get existing trials map or initialize empty map
     existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
 
-    # Return early if we already have this experiment's variation
-    if Map.has_key?(existing_trials, experiment_name) do
-      {conn, %{name: Map.get(existing_trials, experiment_name)}}
-    else
-      session_id = Plug.Conn.get_session(conn, @session_key)
+    # Get session ID or create new one
+    session_id = Plug.Conn.get_session(conn, @session_key)
 
-      {conn, session_id} =
-        if is_nil(session_id) do
-          new_id = generate_session_id()
-          {Plug.Conn.put_session(conn, @session_key, new_id), new_id}
-        else
-          {conn, session_id}
-        end
+    {conn, session_id} =
+      if is_nil(session_id) do
+        new_id = generate_session_id()
+        {Plug.Conn.put_session(conn, @session_key, new_id), new_id}
+      else
+        {conn, session_id}
+      end
 
-      variation = get_session_exp_variation_by_id(session_id, experiment_name)
-      # Store just the variation name for simpler access
-      updated_trials = Map.put(existing_trials, experiment_name, variation.name)
-      conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
+    # Process only experiments that aren't already in trials
+    new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
 
-      {conn, variation.name}
-    end
+    new_variations =
+      Enum.map(new_experiments, fn experiment_name ->
+        variation = get_session_exp_variation_by_id(session_id, experiment_name)
+        {experiment_name, variation.name}
+      end)
+      |> Map.new()
+
+    # Merge existing and new variations
+    updated_trials = Map.merge(existing_trials, new_variations)
+    conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
+
+    {conn, updated_trials}
+  end
+
+  @doc """
+  Retrieves or assigns variations for multiple user-based experiments.
+  Returns a map of %{experiment_name => variation_name}.
+  """
+  def get_user_exp_variations(%{id: user_id}, experiment_names)
+      when is_list(experiment_names) and is_integer(user_id) do
+    Enum.map(experiment_names, fn experiment_name ->
+      variation = get_user_exp_variation(%{id: user_id}, experiment_name)
+      {experiment_name, variation.name}
+    end)
+    |> Map.new()
   end
 
   @doc """
@@ -57,6 +74,45 @@ defmodule ExAbby.PhoenixHelper do
   end
 
   @doc """
+  Records successes for multiple session-based experiments.
+  """
+  def record_successes_for_session(conn, experiment_names, opts \\ [])
+      when is_list(experiment_names) do
+    session_id = Plug.Conn.get_session(conn, @session_key)
+    ExAbby.Experiments.record_session_successes(session_id, experiment_names, opts)
+  end
+
+  @doc """
+  Records successes for multiple experiments with a specific session ID.
+  Returns a map of %{experiment_name => result} where result is {:ok, trial} or {:error, reason}
+  """
+  def record_successes_for_session_id(session_id, experiment_names, opts \\ [])
+      when is_list(experiment_names) do
+    Enum.map(experiment_names, fn experiment_name ->
+      result = record_success_for_session_id(session_id, experiment_name, opts)
+      {experiment_name, result}
+    end)
+    |> Map.new()
+  end
+
+  @doc """
+  Records a success for a specific session ID.
+  """
+  def record_success_for_session_id(session_id, experiment_name, opts \\ [])
+
+  def record_success_for_session_id(session_id, experiment_name, opts) do
+    with experiment when not is_nil(experiment) <-
+           Experiments.get_experiment_by_name(experiment_name),
+         trial when not is_nil(trial) <-
+           Experiments.get_trial_by_session(experiment.id, session_id) do
+      Experiments.record_success(trial, opts)
+      {:ok, trial}
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Records a success for the session-based experiment.
   """
   def record_success_for_session(conn, experiment_name, opts \\ []) do
@@ -66,21 +122,6 @@ defmodule ExAbby.PhoenixHelper do
       {:error, :no_session_id}
     else
       record_success_for_session_id(session_id, experiment_name, opts)
-    end
-  end
-
-  @doc """
-  Records a success for a specific session ID.
-  """
-  def record_success_for_session_id(session_id, experiment_name, opts \\ []) do
-    with experiment when not is_nil(experiment) <-
-           Experiments.get_experiment_by_name(experiment_name),
-         trial when not is_nil(trial) <-
-           Experiments.get_trial_by_session(experiment.id, session_id) do
-      Experiments.record_success(trial, opts)
-      {:ok, trial}
-    else
-      nil -> {:error, :not_found}
     end
   end
 

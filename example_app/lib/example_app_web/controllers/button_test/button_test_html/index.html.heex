@@ -1,21 +1,31 @@
 <div class="max-w-md text-blue-900 mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
+   <h1 class="text-2xl font-bold mb-4">Landing Page Test</h1>
+      <%= case @ex_abby_trials["landing_page_test"] do %>
+        <% "hello_world" -> %>
+          <div>Hello World!</div>
+        <% _ -> %>
+          <div>This is the control</div>
+      <% end %>
+            <div class="border-t border-gray-300 my-6"></div>
+
   <h1 class="text-2xl font-bold mb-4">Button Color Test</h1>
 
-  <%= if @variation do %>
+
+  <%= if @ex_abby_trials["button_color_test"] do %>
     <div class="space-y-4">
-      <.link href={~p"/button-test/convert"} method="post" class={get_button_class(@variation)}>
+      <.link href={~p"/button-test/convert"} method="post" class={get_button_class(@ex_abby_trials["button_color_test"])}>
         Click Me!
       </.link>
 
       <.link
         href={~p"/button-test/convert?amount=100"}
         method="post"
-        class={get_button_class(@variation)}
+        class={get_button_class(@ex_abby_trials["button_color_test"])}
       >
         Click for $100!
       </.link>
 
-      <p class="mt-4 text-gray-600">Current variation: {@variation}</p>
+      <p class="mt-4 text-gray-600">Current variation: {@ex_abby_trials["button_color_test"]}</p>
     </div>
   <% end %>
 </div>

@@ -2,8 +2,7 @@ defmodule ExampleAppWeb.ButtonTestLive do
   use ExampleAppWeb, :live_view
 
   def mount(_params, session, socket) do
-    socket =
-      ExAbby.get_variation(socket, session, "button_color_test")
+    socket = ExAbby.get_variations(socket, session, ["landing_page_test", "button_color_test"])
 
     {:ok, assign(socket, session: session)}
   end
@@ -11,6 +10,15 @@ defmodule ExampleAppWeb.ButtonTestLive do
   def render(assigns) do
     ~H"""
     <div class="max-w-md text-blue-900 mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
+      <h1 class="text-2xl font-bold mb-4">Landing Page Test</h1>
+      <%= case @ex_abby_trials["landing_page_test"] do %>
+        <% "hello_world" -> %>
+          <div>Hello World!</div>
+        <% _ -> %>
+          <div>This is the control</div>
+      <% end %>
+      <div class="border-t border-gray-300 my-6"></div>
+
       <h1 class="text-2xl font-bold mb-4">Button Color Test</h1>
 
       <%= if @ex_abby_trials["button_color_test"] do %>
@@ -34,7 +42,7 @@ defmodule ExampleAppWeb.ButtonTestLive do
   end
 
   def handle_event("convert", _params, socket) do
-    case ExAbby.record_success(socket, "button_color_test") do
+    case ExAbby.record_successes(socket, ["landing_page_test", "button_color_test"]) do
       {:ok, _trial} ->
         {:noreply, put_flash(socket, :info, "Conversion recorded!")}
 

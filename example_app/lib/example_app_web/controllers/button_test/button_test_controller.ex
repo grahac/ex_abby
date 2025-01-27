@@ -2,8 +2,10 @@ defmodule ExampleAppWeb.ButtonTest.ButtonTestController do
   use ExampleAppWeb, :controller
 
   def index(conn, _params) do
-    {conn, variation} = ExAbby.get_variation(conn, "button_color_test")
-    render(conn, :index, variation: variation)
+    # {conn, variation} = ExAbby.get_variation(conn, "button_color_test")
+    {conn, _variations} = ExAbby.get_variations(conn, ["landing_page_test", "button_color_test"])
+
+    render(conn, :index)
   end
 
   def convert(conn, %{"amount" => amount}) when not is_nil(amount) do
@@ -21,7 +23,7 @@ defmodule ExampleAppWeb.ButtonTest.ButtonTestController do
   end
 
   def convert(conn, _params) do
-    case ExAbby.record_success(conn, "button_color_test") do
+    case ExAbby.record_successes(conn,  ["landing_page_test", "button_color_test"]) do
       {:ok, _trial} ->
         conn
         |> put_flash(:info, "Conversion recorded!")

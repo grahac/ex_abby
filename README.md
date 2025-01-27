@@ -130,22 +130,28 @@ mix ecto.migrate
 
 In a controller action (e.g., `PageController`):
 
-
 ```elixir
 def index(conn, _params) do
+  # Single variation example
   {conn, variation} = ExAbby.get_variation(conn, "landing_page_test")
-  render(conn, "index.html", ab_variation: variation)
+  
+  # Multiple variations example
+  {conn, variations} = ExAbby.get_variations(conn, ["landing_page_test", "button_color_test"])
+  render(conn, "index.html", ab_variations: variations)
 end
 
 def record_conversion(conn, _params) do
-  # Basic success recording
+  # Single experiment success recording
   ExAbby.record_success(conn, "landing_page_test")
   
-  # Or record with an amount (e.g., purchase value)
-  ExAbby.record_success(conn, "landing_page_test", amount: 99.99)
+  # Multiple experiment success recording
+  ExAbby.record_successes(conn, ["landing_page_test", "button_color_test"])
   
-  # Or record secondary success (e.g., upgrade after trial)
-  ExAbby.record_success(conn, "landing_page_test", success_type: :success2)
+  # Record with options (works for both single and multiple)
+  ExAbby.record_successes(conn, ["landing_page_test", "button_color_test"], 
+    amount: 99.99,
+    success_type: :success1
+  )
   
   redirect(conn, to: "/thank_you")
 end
@@ -158,15 +164,24 @@ If you have a `current_user`:
 ```elixir
 def show(conn, _params) do
   user = conn.assigns.current_user
+  
+  # Single variation
   variation = ExAbby.get_variation(user, "dashboard_experiment")
-  render(conn, "show.html", ab_variation: variation)
+  
+  # Multiple variations
+  variations = ExAbby.get_variations(user, ["dashboard_experiment", "feature_test"])
+  render(conn, "show.html", ab_variations: variations)
 end
 
 def record_dashboard_success(conn, _params) do
-  ExAbby.record_success(conn.assigns.current_user, "dashboard_experiment")
+  user = conn.assigns.current_user
+  
+  # Record multiple successes
+  ExAbby.record_successes(user, ["dashboard_experiment", "feature_test"])
   redirect(conn, to: "/thanks")
 end
 ```
+
 
 ## Usage in LiveView
 
@@ -174,58 +189,81 @@ end
 2. In your LiveView:
 
 ```elixir
-defmodule MyAppWeb.LandingLive do
+defmodule MyAppWeb.ButtonTestLive do
   use MyAppWeb, :live_view
 
   def mount(_params, session, socket) do
-    # Only assign the variation if the socket is connected
-    socket = ExAbby.get_variation(socket, session, "landing_page_test")
-    # Optionally store the session for event handlers:
-    {:ok, assign(socket, :my_session, session)}
+    # Get multiple variations at once
+    socket = ExAbby.get_variations(socket, session, ["landing_page_test", "button_color_test"])
+    {:ok, assign(socket, session: session)}
   end
 
   def render(assigns) do
-  def render(assigns) do
     ~H"""
-    <h2>Landing Page</h2>
-    <%= case @ex_abby_trials["landing_page_test"] do %>
-      <% "variation_a" -> %>
-        <div>Variation A Content</div>
-      <% "variation_b" -> %>
-        <div>Variation B Content</div>
-      <% _ -> %>
-        <div>Original Content</div>
-    <% end %>
-    <button phx-click="convert" phx-value-amount="99.99">Click me</button>
+    <div class="max-w-md mx-auto mt-10 p-6 bg-white rounded-lg shadow-lg">
+      <%= case @ex_abby_trials["landing_page_test"] do %>
+        <% "hello_world" -> %>
+          <div>Hello World!</div>
+        <% _ -> %>
+          <div>This is the control</div>
+      <% end %>
+
+      <button 
+        phx-click="convert" 
+        class={get_button_class(@ex_abby_trials["button_color_test"])}
+      >
+        Click Me!
+      </button>
+    </div>
     """
   end
 
- def handle_event("convert", %{"amount" => amount}, socket) do
-  case ExAbby.record_success(socket, socket.assigns.my_session, "landing_page_test", 
-    amount: amount, 
-    success_type: :success1
-  ) do
-    {:ok, _trial} -> {:noreply, socket}
-    {:error, reason} -> 
-      IO.inspect(reason, label: "AB Test error")
-      {:noreply, socket}
+  def handle_event("convert", _params, socket) do
+    case ExAbby.record_successes(socket, ["landing_page_test", "button_color_test"]) do
+      {:ok, _trial} ->
+        {:noreply, put_flash(socket, :info, "Conversion recorded!")}
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to record conversion")}
+    end
   end
-end
 
+  # Helper function for button styling based on variation
+  defp get_button_class("blue"), do: "bg-blue-500 text-white rounded hover:bg-blue-600"
+  defp get_button_class("green"), do: "bg-green-500 text-white rounded hover:bg-green-600"
+  defp get_button_class(_), do: "bg-gray-500 text-white rounded hover:bg-gray-600"
+end
 ```
 
 The variations are stored in `@ex_abby_trials` as a map where:
 - Keys are experiment names (e.g., `"landing_page_test"`)
-- Values are variation names (e.g., `"original"`, `"variation_a"`)
-This makes it easy to pattern match or conditionally render content based on the variation name.
+- Values are variation names (e.g., `"hello_world"`, `"control"`)
 
-This way, your LiveView handles session-based trials **without** needing a `conn`.
+### Recording Conversions with Options
 
----
+You can record conversions with additional options:
+
+```elixir
+# Record a conversion with an amount
+ExAbby.record_success(socket, "button_color_test",
+  amount: 100.0,
+  success_type: :success2
+)
+
+# Record multiple conversions at once
+ExAbby.record_successes(socket, ["landing_page_test", "button_color_test"])
+```
+
+Available options:
+- `:amount` - Optional numeric value to track with the success (default: 0.0)
+- `:success_type` - Type of success to record, either `:success1` or `:success2` (default: `:success1`)
+
+// ... existing code ...
 
 ## Optional Admin Routes
 
-If you’re using the **admin LiveViews** included in `ex_abby`, add something like:
+ExAbby includes a simple admin interface for viewing and managing experiments. To use it:
+
+1. Add the routes to your router:
 
 ```elixir
 defmodule MyAppWeb.Router do
@@ -234,15 +272,16 @@ defmodule MyAppWeb.Router do
 
   scope "/admin", MyAppWeb do
     pipe_through [:browser, :admin_auth]
-
     ex_abby_admin_routes()
   end
 end
 ```
 
-Then navigate to `/admin/ab_tests` to see your experiments in a simple table. You can click on any to view details and edit variation weights.
+2. Visit `/admin/ab_tests` to see a clean, Tailwind-styled interface showing:
+   - List of all experiments
+   - Experiment details and descriptions
+   - Quick links to view individual experiments
 
----
 
 ## Upserting Experiments and Updating Weights
 

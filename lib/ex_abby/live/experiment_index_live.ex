@@ -75,22 +75,23 @@ defmodule ExAbby.Live.ExperimentIndexLive do
       <table class="experiments-table">
         <thead>
           <tr>
+            <th>Actions</th>
             <th>Experiment Name</th>
             <th>Description</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <%= for e <- @experiments do %>
 
             <tr>
-              <td><%= e.name %></td>
-              <td><%= e.description %></td>
               <td>
                 <.link patch={"#{e.id}"} class="view-link">
                   View
                 </.link>
               </td>
+              <td><%= e.name %></td>
+              <td><%= e.description %></td>
+
             </tr>
 
           <% end %>

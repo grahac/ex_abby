@@ -7,7 +7,34 @@ defmodule ExAbby do
   """
 
   @doc """
-  Gets or creates a trial for a session-based experiment.
+  Gets or creates trials for multiple experiments.
+
+  ## Examples:
+      # In Phoenix controller:
+      {conn, variations} = ExAbby.get_variations(conn, ["exp1", "exp2"])
+
+      # In LiveView:
+      socket = ExAbby.get_variations(socket, session, ["exp1", "exp2"])
+
+      # For user-based:
+      variations = ExAbby.get_variations(user, ["exp1", "exp2"])
+  """
+  def get_variations(%Plug.Conn{} = conn, experiment_names) when is_list(experiment_names) do
+    ExAbby.PhoenixHelper.get_session_exp_variations(conn, experiment_names)
+  end
+
+  def get_variations(%{id: user_id} = user, experiment_names)
+      when is_list(experiment_names) and is_integer(user_id) do
+    ExAbby.PhoenixHelper.get_user_exp_variations(user, experiment_names)
+  end
+
+  def get_variations(%Phoenix.LiveView.Socket{} = socket, session, experiment_names)
+      when is_list(experiment_names) do
+    ExAbby.LiveViewHelper.fetch_session_exp_variations_lv(socket, session, experiment_names)
+  end
+
+  @doc """
+  Gets or creates a trial for a single experiment. Convenience wrapper around get_variations.
 
   ## Examples:
       # In Phoenix controller:
@@ -20,19 +47,21 @@ defmodule ExAbby do
       variation = ExAbby.get_variation(user, "experiment_name")
   """
   def get_variation(%Plug.Conn{} = conn, experiment_name) do
-    ExAbby.PhoenixHelper.get_session_exp_variation(conn, experiment_name)
+    {conn, variations} = get_variations(conn, [experiment_name])
+    {conn, Map.get(variations, experiment_name)}
   end
 
   def get_variation(%{id: user_id} = user, experiment_name) when is_integer(user_id) do
-    ExAbby.PhoenixHelper.get_user_exp_variation(user, experiment_name)
+    variations = get_variations(user, [experiment_name])
+    Map.get(variations, experiment_name)
   end
 
   def get_variation(%Phoenix.LiveView.Socket{} = socket, session, experiment_name) do
-    ExAbby.LiveViewHelper.fetch_session_exp_variation_lv(socket, session, experiment_name)
+    get_variations(socket, session, [experiment_name])
   end
 
   @doc """
-  Records a success for an experiment.
+  Records successes for multiple experiments.
 
   ## Options
     * `:amount` - Optional numeric value to track with the success (default: 0.0)
@@ -40,29 +69,41 @@ defmodule ExAbby do
 
   ## Examples:
       # In Phoenix controller:
-      ExAbby.record_success(conn, "experiment_name")
-      ExAbby.record_success(conn, "experiment_name", amount: 10.5)
-      ExAbby.record_success(conn, "experiment_name", success_type: :success2)
+      {:ok, results} = ExAbby.record_successes(conn, ["exp1", "exp2"])
+      {:error, %{successful: ["exp1"], failed: ["exp2"]}} = ExAbby.record_successes(conn, ["exp1", "exp2"])
 
       # In LiveView:
-      ExAbby.record_success(socket, "experiment_name")
-      ExAbby.record_success(socket, "experiment_name", amount: 10.5, success_type: :success2)
+      {:ok, results} = ExAbby.record_successes(socket, ["exp1", "exp2"])
 
       # For user-based:
-      ExAbby.record_success(user, "experiment_name")
+      {:ok, results} = ExAbby.record_successes(user, ["exp1", "exp2"])
+
+  Returns either:
+    * `{:ok, %{experiment_name => {:ok, trial}}}` if all successful
+    * `{:error, %{successful: [...], failed: [...]}}` if any failed
   """
-  def record_success(context, experiment_name, opts \\ [])
+  def record_successes(context, experiment_names, opts \\ [])
 
-  def record_success(%Plug.Conn{} = conn, experiment_name, opts) do
-    ExAbby.PhoenixHelper.record_success_for_session(conn, experiment_name, opts)
+  def record_successes(%Plug.Conn{} = conn, experiment_names, opts)
+      when is_list(experiment_names) do
+    ExAbby.PhoenixHelper.record_successes_for_session(conn, experiment_names, opts)
   end
 
-  def record_success(%Phoenix.LiveView.Socket{} = socket, experiment_name, opts) do
-    ExAbby.LiveViewHelper.record_success_for_session_lv(socket, experiment_name, opts)
+  def record_successes(%Phoenix.LiveView.Socket{} = socket, experiment_names, opts)
+      when is_list(experiment_names) do
+    ExAbby.LiveViewHelper.record_successes_for_session_lv(socket, experiment_names, opts)
   end
 
-  def record_success(%{id: user_id} = user, experiment_name, opts) when is_integer(user_id) do
-    ExAbby.Experiments.record_success_for_user(user, experiment_name, opts)
+  def record_successes(%{id: user_id} = _user, experiment_names, opts)
+      when is_list(experiment_names) and is_integer(user_id) do
+    ExAbby.Experiments.record_user_successes(user_id, experiment_names, opts)
+  end
+
+  @doc """
+  Records a success for a single experiment. Convenience wrapper around record_successes.
+  """
+  def record_success(context, experiment_name, opts \\ []) do
+    record_successes(context, [experiment_name], opts)
   end
 
   # Admin/setup functions

@@ -157,6 +157,16 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
+  Gets or creates trials for multiple experiments for a session.
+  Returns a list of {variation, status} tuples in the same order as the experiment names.
+  """
+  def get_or_create_session_trials(experiment_names, session_id) when is_list(experiment_names) do
+    Enum.map(experiment_names, fn experiment_name ->
+      get_or_create_session_trial(experiment_name, session_id)
+    end)
+  end
+
+  @doc """
   Gets or creates a trial for a session.
   """
   def get_or_create_session_trial(experiment_name, session_id) do
@@ -189,6 +199,12 @@ defmodule ExAbby.Experiments do
         where: t.experiment_id == ^experiment_id and t.session_id == ^session_id
       )
     )
+  end
+
+  def get_or_create_user_trials(experiment_names, user_id) when is_list(experiment_names) do
+    Enum.map(experiment_names, fn experiment_name ->
+      get_or_create_user_trial(experiment_name, user_id)
+    end)
   end
 
   @doc """
@@ -409,6 +425,77 @@ defmodule ExAbby.Experiments do
       end)
     else
       []
+    end
+  end
+
+  @doc """
+  Records successes for multiple experiments with consistent error handling.
+  Returns either:
+    * `{:ok, %{experiment_name => {:ok, trial}}}` if all successful
+    * `{:error, %{successful: [...], failed: [...]}}` if any failed
+  """
+  def record_multiple_successes(experiment_names, record_fn) when is_list(experiment_names) do
+    results =
+      Enum.map(experiment_names, fn experiment_name ->
+        {experiment_name, record_fn.(experiment_name)}
+      end)
+
+    format_experiment_results(results)
+  end
+
+  @doc """
+  Records successes for session-based experiments.
+  """
+  def record_session_successes(session_id, experiment_names, opts \\ []) do
+    if is_nil(session_id) do
+      {:error, %{successful: [], failed: experiment_names}}
+    else
+      record_multiple_successes(experiment_names, fn experiment_name ->
+        with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
+             trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
+          record_success(trial, opts)
+          {:ok, trial}
+        else
+          nil -> {:error, :not_found}
+        end
+      end)
+    end
+  end
+
+  @doc """
+  Records successes for user-based experiments.
+  """
+  def record_user_successes(user_id, experiment_names, opts \\ []) do
+    if is_nil(user_id) do
+      {:error, %{successful: [], failed: experiment_names}}
+    else
+      record_multiple_successes(experiment_names, fn experiment_name ->
+        record_success_for_user(experiment_name, user_id, opts)
+      end)
+    end
+  end
+
+  @doc """
+  Formats a list of experiment results into a consistent response tuple.
+  Returns either:
+    * `{:ok, %{experiment_name => result}}` if all successful
+    * `{:error, %{successful: [...], failed: [...]}}` if any failed
+  """
+  def format_experiment_results(results) when is_list(results) do
+    {successful, failed} =
+      results
+      |> Enum.split_with(fn {_name, result} -> match?({:ok, _}, result) end)
+
+    case failed do
+      [] ->
+        {:ok, Map.new(results)}
+
+      _failed_trials ->
+        {:error,
+         %{
+           successful: Enum.map(successful, fn {name, _} -> name end),
+           failed: Enum.map(failed, fn {name, _} -> name end)
+         }}
     end
   end
 

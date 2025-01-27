@@ -9,6 +9,16 @@ experiments = [
     ],
     [success1_label: "Signup", success2_label: "Purchase", update_weights: false]
   },
+    {
+    "landing_page_test",
+    "simple landing page text",
+    [
+      {"hello_world", 0.5},
+      {"control", 0.5}
+    ],
+    [success1_label: "Signup", success2_label: "Purchase", update_weights: false]
+  },
+
   # Add more experiments as needed
 ]
 
