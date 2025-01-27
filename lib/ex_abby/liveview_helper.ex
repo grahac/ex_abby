@@ -4,10 +4,10 @@ defmodule ExAbby.LiveViewHelper do
   - Using session-based logic, but with no direct `conn`
   - Checking `connected?(socket)` before creating/recording
   """
-
-  alias ExAbby.PhoenixHelper
-  @session_key "ex_abby_session_id"
   import Phoenix.Component, only: [assign: 3]
+  alias ExAbby.PhoenixHelper
+  require Logger
+  @session_key "ex_abby_session_id"
 
   @doc """
 
@@ -26,33 +26,33 @@ defmodule ExAbby.LiveViewHelper do
   """
   def fetch_session_exp_variations_lv(socket, session, experiment_names)
       when is_list(experiment_names) do
-    if Phoenix.LiveView.connected?(socket) do
-      # Get existing trials map or initialize empty map
-      existing_trials = Map.get(socket.assigns, :ex_abby_trials, %{})
+    # Get existing trials map or initialize empty map
+    existing_trials = Map.get(socket.assigns, :ex_abby_trials, %{})
 
-      socket = save_session_data(socket, session)
+    socket = save_session_data(socket, session)
 
-      if socket.assigns.ex_abby_session_id do
-        # Process only experiments that aren't already in trials
-        new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
+    if socket.assigns.ex_abby_session_id do
+      # Process only experiments that aren't already in trials
+      new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
 
-        new_variations =
-          Enum.map(new_experiments, fn experiment_name ->
-            variation =
-              get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name)
+      new_variations =
+        Enum.map(new_experiments, fn experiment_name ->
+          variation =
+            get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name)
 
-            {experiment_name, variation.name}
-          end)
-          |> Map.new()
+          {experiment_name, variation.name}
+        end)
+        |> Map.new()
 
-        # Merge existing and new variations
-        updated_trials = Map.merge(existing_trials, new_variations)
-        assign(socket, :ex_abby_trials, updated_trials)
-      else
-        socket
-      end
+      # Merge existing and new variations
+      updated_trials = Map.merge(existing_trials, new_variations)
+      assign(socket, :ex_abby_trials, updated_trials)
     else
-      save_session_data(socket, session)
+      Logger.warning(
+        "Could not find Session token.  Make sure you have the ExAbby Router Plug installed."
+      )
+
+      socket
     end
   end
 
