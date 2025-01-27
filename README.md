@@ -2,7 +2,12 @@
 
 **ExAbby** is a minimal A/B testing library for Elixir/Phoenix.  
 
-*Note: This was created with my friends Claude and C. HatGPT. The code is working but not my favorite and feels a bit too spaghetti code and inconsistent for my liking. I plan to continue to refactor/change it as I come across issues.  There are also a ton of optimizations needed.*
+*Note: This was created with my friends Claude and C. Hat GPT. The code is working but not necessarily something I am proud of yet. It feels a bit too spaghetti code and inconsistent for my liking. Also it is currently non-performant so be careful under load.  I plan to continue to refactor/change it as I come across issues.  There are also a ton of optimizations needed.*
+
+## Why Ex Abby? 
+I have found there are no super simple ways to get ab testing working for smaller sites. You have to pay $$ or use a complex system.  And everything has moved to feature tagging. This experiment framework is based on something we built in-house for a consumer company that reached virality co-efficients of 1.0 a few times.  And the goal is to make it super easy to use in Liveview environments. 
+
+This is really early and the API is 100% likely to change. Feedback is appreciated! 
 
 It supports:
 
@@ -56,7 +61,7 @@ Coming in the future
    ```elixir
    defp deps do
      [
-       {:ex_abby, github: "YOUR_USER/ex_abby", tag: "0.1.0"}
+       {:ex_abby, github: "grahac/ex_abby", tag: "0.1.0"}
      ]
    end
    ```
@@ -125,6 +130,7 @@ mix ecto.migrate
 
 In a controller action (e.g., `PageController`):
 
+
 ```elixir
 def index(conn, _params) do
   {conn, variation} = ExAbby.get_variation(conn, "landing_page_test")
@@ -132,7 +138,15 @@ def index(conn, _params) do
 end
 
 def record_conversion(conn, _params) do
+  # Basic success recording
   ExAbby.record_success(conn, "landing_page_test")
+  
+  # Or record with an amount (e.g., purchase value)
+  ExAbby.record_success(conn, "landing_page_test", amount: 99.99)
+  
+  # Or record secondary success (e.g., upgrade after trial)
+  ExAbby.record_success(conn, "landing_page_test", success_type: :success2)
+  
   redirect(conn, to: "/thank_you")
 end
 ```
@@ -171,6 +185,7 @@ defmodule MyAppWeb.LandingLive do
   end
 
   def render(assigns) do
+  def render(assigns) do
     ~H"""
     <h2>Landing Page</h2>
     <%= case @ex_abby_trials["landing_page_test"] do %>
@@ -181,19 +196,22 @@ defmodule MyAppWeb.LandingLive do
       <% _ -> %>
         <div>Original Content</div>
     <% end %>
-    <button phx-click="convert">Click me</button>
+    <button phx-click="convert" phx-value-amount="99.99">Click me</button>
     """
   end
 
-  def handle_event("convert", _params, socket) do
-    case ExAbby.record_success(socket, socket.assigns.my_session, "landing_page_test") do
-      {:ok, _trial} -> {:noreply, socket}
-      {:error, reason} -> 
-        IO.inspect(reason, label: "AB Test error")
-        {:noreply, socket}
-    end
+ def handle_event("convert", %{"amount" => amount}, socket) do
+  case ExAbby.record_success(socket, socket.assigns.my_session, "landing_page_test", 
+    amount: amount, 
+    success_type: :success1
+  ) do
+    {:ok, _trial} -> {:noreply, socket}
+    {:error, reason} -> 
+      IO.inspect(reason, label: "AB Test error")
+      {:noreply, socket}
   end
 end
+
 ```
 
 The variations are stored in `@ex_abby_trials` as a map where:
@@ -238,16 +256,73 @@ ExAbby.upsert_experiment_and_update_weights(
     {"Original", 1.0},
     {"Variation A", 1.0},
     {"Variation B", 2.0}
-  ]
+  ],
+  success1_label: "Signup",
+  success2_label: "Purchase"
 )
+
 ```
+
 
 Then:
 
 - If `"landing_page_test"` **does not exist**, the library creates a new experiment with that name + description, and 3 variations with the specified weights.  
-- If the experiment **already exists**, we do **not** change its description nor create new variations. We **only** update the weight of any existing variation whose name matches. Others get skipped.
+- If the experiment **already exists**, we do **not** change its weights. We update all the other info if
+- you can optionally add labels to label success. This is just for readability and is optional.
+---
+
+
+## Seeding Experiments
+
+Create a file `priv/repo/seeds/experiments.exs` to define your experiments:
+
+```elixir
+experiments = [
+  {
+    "button_color_test",
+    "Testing different button colors for signup",
+    [
+      {"control", 0.33},
+      {"green", 0.33}, 
+      {"blue", 0.33}
+    ],
+    [success1_label: "Signup", success2_label: "Purchase", update_weights: false]
+  },
+  {
+    "landing_page_test",
+    "Testing different landing page layouts",
+    [
+      {"original", 0.5},
+      {"new_design", 0.5}
+    ],
+    [success1_label: "Email Signup", update_weights: false]
+  }
+  # Add more experiments as needed
+]
+
+# Seed or update experiments without modifying weights
+Enum.each(experiments, fn {name, description, variations, opts} ->
+  ExAbby.upsert_experiment_and_update_weights(name, description, variations, opts)
+end)
+```
+
+Then in your `priv/repo/seeds.exs`, add:
+
+```elixir
+Code.require_file("seeds/experiments.exs", __DIR__)
+```
+
+Run the seeds with:
+
+```bash
+mix run priv/repo/seeds.exs
+```
+
+This will create or update your experiments while preserving existing weights for any experiments that already exist.
 
 ---
+
+
 
 ## Runtime vs. Compile-Time Repo
 
