@@ -72,6 +72,7 @@ defmodule ExAbby.Migrations do
 
   def drop_tables do
     drop(table(:exabby_trials))
+    drop(table(:exabby_variations_audit_log))
     drop(table(:exabby_variations))
     drop(table(:exabby_experiments))
   end
