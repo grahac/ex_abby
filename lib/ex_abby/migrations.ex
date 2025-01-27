@@ -71,9 +71,9 @@ defmodule ExAbby.Migrations do
   end
 
   def drop_tables do
-    drop(table(:exabby_trials))
-    drop(table(:exabby_variations_audit_log))
-    drop(table(:exabby_variations))
-    drop(table(:exabby_experiments))
+    drop_if_exists(table(:exabby_trials))
+    drop_if_exists(table(:exabby_variations_audit_log))
+    drop_if_exists(table(:exabby_variations))
+    drop_if_exists(table(:exabby_experiments))
   end
 end
