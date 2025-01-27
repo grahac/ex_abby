@@ -53,6 +53,17 @@ defmodule ExAbby.Migrations do
       timestamps()
     end
 
+    create table(:exabby_variations_audit_log) do
+      add(:variation_id, references(:exabby_variations, on_delete: :delete_all), null: false)
+      add(:previous_weight, :float, null: false)
+      add(:new_weight, :float, null: false)
+      add(:changed_by, :string)
+
+      timestamps()
+    end
+
+    create(index(:exabby_variations_audit_log, [:variation_id]))
+
     create(index(:exabby_trials, [:experiment_id]))
     create(index(:exabby_trials, [:variation_id]))
     create(index(:exabby_trials, [:user_id]))

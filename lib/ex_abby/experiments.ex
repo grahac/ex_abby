@@ -154,10 +154,18 @@ defmodule ExAbby.Experiments do
     end
   end
 
-  def update_weight(variation, weight) do
-    variation
-    |> Changeset.change(%{weight: weight})
-    |> repo().update()
+  def update_weight(variation, weight, changed_by \\ "system") do
+    if(weight != variation.weight) do
+      Ecto.Multi.new()
+      |> Ecto.Multi.insert(:audit_log, %ExAbby.VariationAuditLog{
+        variation_id: variation.id,
+        previous_weight: variation.weight,
+        new_weight: weight,
+        changed_by: changed_by
+      })
+      |> Ecto.Multi.update(:variation, Changeset.change(variation, %{weight: weight}))
+      |> repo().transaction()
+    end
   end
 
   @doc """
