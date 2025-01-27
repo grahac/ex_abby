@@ -36,9 +36,10 @@ Coming in the future
 3. [Session Setup](#session-setup)
 4. [Migrations](#migrations)
 5. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
-6. [Usage in Controllers](#usage-in-controllers)
-7. [Usage in LiveView](#usage-in-liveview)
-8. [Optional Admin Routes](#optional-admin-routes)
+6. [Admin Routes](#optional-admin-routes)
+
+7. [Usage in Controllers](#usage-in-controllers)
+8. [Usage in LiveView](#usage-in-liveview)
 9. [Troubleshooting](#troubleshooting)
 
 ---
@@ -95,7 +96,6 @@ pipeline :browser do
   # ... other plugs ...
   plug ExAbby.SessionPlug
 end
-```
 
 # In lib/your_app_web/endpoint.ex
 plug Plug.Session,
@@ -105,6 +105,7 @@ plug Plug.Session,
 
 plug ExAbby.SessionPlug
 
+```
 
 
 This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests.
@@ -251,6 +252,34 @@ bin/migrate
 ```
 This will create or update your experiments while preserving existing weights for any experiments that already exist.
 ---
+
+
+## Optional Admin Routes
+
+ExAbby includes a simple admin interface for viewing and managing experiments. To use it:
+
+1. Add the routes to your router:
+
+```elixir
+defmodule MyAppWeb.Router do
+  use MyAppWeb, :router
+  import ExAbby.Router  
+
+  scope "/admin", MyAppWeb do
+    pipe_through [:browser, :admin_auth]
+    ex_abby_admin_routes()
+  end
+end
+```
+
+2. Visit `/admin/ab_tests` to see a clean, Tailwind-styled interface showing:
+   - List of all experiments
+   - Experiment details and descriptions
+   - Quick links to view individual experiments
+
+
+---
+
 ## Usage in Controllers
 
 ### Session-based Example
@@ -383,32 +412,6 @@ ExAbby.record_successes(socket, ["landing_page_test", "button_color_test"])
 Available options:
 - `:amount` - Optional numeric value to track with the success (default: 0.0)
 - `:success_type` - Type of success to record, either `:success1` or `:success2` (default: `:success1`)
-
-// ... existing code ...
-
-## Optional Admin Routes
-
-ExAbby includes a simple admin interface for viewing and managing experiments. To use it:
-
-1. Add the routes to your router:
-
-```elixir
-defmodule MyAppWeb.Router do
-  use MyAppWeb, :router
-  import ExAbby.Router  
-
-  scope "/admin", MyAppWeb do
-    pipe_through [:browser, :admin_auth]
-    ex_abby_admin_routes()
-  end
-end
-```
-
-2. Visit `/admin/ab_tests` to see a clean, Tailwind-styled interface showing:
-   - List of all experiments
-   - Experiment details and descriptions
-   - Quick links to view individual experiments
-
 
 ---
 
