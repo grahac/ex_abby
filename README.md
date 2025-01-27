@@ -33,9 +33,10 @@ Coming in the future
 ## Table of Contents
 1. [Installation](#installation)
 2. [Configuration](#configuration)
-3. [Session Setup](#session-setup)
-4. [Migrations](#migrations)
-5. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+
+3. [Migrations](#migrations)
+4. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+5. [Session Setup](#session-setup)
 6. [Admin Routes](#optional-admin-routes)
 
 7. [Usage in Controllers](#usage-in-controllers)
@@ -85,33 +86,6 @@ config :ex_abby,
 Where `MyApp.Repo` is your **Ecto Repo** module.
 
 ---
-### Session Setup
-
-To enable session-based A/B testing, add `ExAbby.SessionPlug` to your endpoint or router pipeline:
-
-
-```elixir
-# In  your router pipeline (recommended):
-pipeline :browser do
-  # ... other plugs ...
-  plug ExAbby.SessionPlug
-end
-
-# In lib/your_app_web/endpoint.ex
-plug Plug.Session,
-  store: :cookie,
-  key: "_your_app_key",
-  signing_salt: "your_signing_salt"
-
-plug ExAbby.SessionPlug
-
-```
-
-
-This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests.
-
-
-
 ## Migrations
 
 ExAbby provides Ecto migrations that create three tables:
@@ -253,8 +227,36 @@ bin/migrate
 This will create or update your experiments while preserving existing weights for any experiments that already exist.
 ---
 
+---
+### Session Setup
 
-## Optional Admin Routes
+To enable session-based A/B testing, add `ExAbby.SessionPlug` to your endpoint or router pipeline:
+
+
+```elixir
+# In  your router pipeline (recommended):
+
+pipeline :browser do
+  # ... other plugs ...
+  plug ExAbby.SessionPlug
+end
+
+# In lib/your_app_web/endpoint.ex
+plug Plug.Session,
+  store: :cookie,
+  key: "_your_app_key",
+  signing_salt: "your_signing_salt"
+
+plug ExAbby.SessionPlug
+
+```
+
+
+This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests.
+---
+
+
+## Admin Routes
 
 ExAbby includes a simple admin interface for viewing and managing experiments. To use it:
 
@@ -263,7 +265,7 @@ ExAbby includes a simple admin interface for viewing and managing experiments. T
 ```elixir
 defmodule MyAppWeb.Router do
   use MyAppWeb, :router
-  import ExAbby.Router  
+  import ExAbby.Router  # add this line 
 
   scope "/admin", MyAppWeb do
     pipe_through [:browser, :admin_auth]
