@@ -5,8 +5,12 @@ defmodule ExAbby.Live.ExperimentIndexLive do
   use Phoenix.LiveView
   alias ExAbby.Experiments
 
+  @spec mount(any(), any(), map()) :: {:ok, map()}
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :experiments, Experiments.list_experiments())}
+    {:ok,
+     socket
+     |> assign(:experiments, Experiments.list_experiments())
+     |> assign(:page_title, "ExAbby - Index")}
   end
 
   def render(assigns) do

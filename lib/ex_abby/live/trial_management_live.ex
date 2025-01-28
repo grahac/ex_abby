@@ -9,6 +9,7 @@ defmodule ExAbby.Live.TrialManagementLive do
       socket
       |> assign(:user_trials_expanded, true)
       |> assign(:session_trials_expanded, true)
+      |> assign(:page_title, "ExAbby - Trial page")
       |> LiveViewHelper.save_session_data(session)
 
     {:ok, socket}

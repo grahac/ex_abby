@@ -10,7 +10,9 @@ defmodule ExAbby.Live.ExperimentShowLive do
     socket = load_experiment(socket, String.to_integer(id))
 
     if(socket.assigns[:experiment]) do
-      {:ok, socket}
+      {:ok,
+       socket
+       |> assign(:page_title, "ExAbby - #{socket.assigns.experiment.name}")}
     else
       {:ok, push_navigate(socket, to: "/")}
     end
