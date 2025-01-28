@@ -68,6 +68,20 @@ defmodule ExAbby.Live.TrialManagementLive do
         padding: 1.5rem;
       }
 
+
+      .back-button {
+        display: inline-flex;
+        padding: 0.5rem 1rem;
+        background-color: #93c5fd;
+        color: #1e3a8a;
+        text-decoration: none;
+        border-radius: 0.375rem;
+        margin-bottom: 1rem;
+        width: fit-content;
+      }
+      .back-button:hover {
+        background-color: #60a5fa;
+      }
       .section-header {
         display: flex;
         align-items: center;
@@ -123,6 +137,7 @@ defmodule ExAbby.Live.TrialManagementLive do
       .trial-stats {
         text-align: right;
         min-width: 150px;
+        max-width: 300px;
         font-size: 0.875rem;
         color: #2563eb;
         background-color: #f3f4f6;
@@ -172,6 +187,7 @@ defmodule ExAbby.Live.TrialManagementLive do
 
     <div class="trial-container">
       <div class="sections-wrapper">
+      <.link patch={"index"} class="back-button">← Back to Experiments</.link>
         <.user_trials_section
           user_trials_expanded={@user_trials_expanded}
           user_id={@user_id}

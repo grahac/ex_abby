@@ -65,11 +65,36 @@ defmodule ExAbby.Live.ExperimentIndexLive do
         color: #1d4ed8;
         text-decoration: underline;
       }
+
+      .header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+      }
+
+      .trials-button {
+        background-color: #2563eb;
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.375rem;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      .trials-button:hover {
+        background-color: #1d4ed8;
+      }
+
     </style>
 
+
     <div class="experiments-container">
-      <div class="experiments-header">
+      <div class="header-container">
         <h1 class="experiments-title">ExAbby Experiments</h1>
+        <.link navigate="trials" class="trials-button">
+          Edit Trials for Session
+        </.link>
       </div>
 
       <table class="experiments-table">
