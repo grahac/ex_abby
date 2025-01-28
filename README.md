@@ -378,11 +378,29 @@ Available options:
 
 ---
 
+
 ## Production Deployment
 
 ExAbby experiments can be seeded automatically during your migration process.
 
-1. **Add Release Module Function**
+1. **Update Mix Release Configuration**
+
+In your `mix.exs`, ensure you have the releases configuration:
+```elixir
+def releases do
+  [
+    memoir: [
+      include_erts: true,
+      include_executables_for: [:unix],
+      applications: [runtime_tools: :permanent],
+      overlays: ["priv/repo/seeds"]
+    ]
+  ]
+end
+```
+
+
+2. **Add Release Module Function**
 
 In `lib/your_app/release.ex`:
 ```elixir
@@ -401,7 +419,7 @@ defmodule YourApp.Release do
 end
 ```
 
-2. **Update Migration Script**
+3. **Update Migration Script**
 
 Your existing `rel/overlays/bin/migrate` script will now run both migrations and seeds:
 ```bash
