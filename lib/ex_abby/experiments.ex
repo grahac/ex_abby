@@ -388,12 +388,10 @@ defmodule ExAbby.Experiments do
                 trial_count: count(t.id),
                 success1_sum: coalesce(sum(t.success1_count), 0),
                 success1_amount: coalesce(sum(t.success1_amount), 0.0),
-                success1_multi: count(fragment("CASE WHEN ? > 1 THEN 1 END", t.success1_count)),
                 success1_unique:
                   count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success1_count, t.id)),
                 success2_sum: coalesce(sum(t.success2_count), 0),
                 success2_amount: coalesce(sum(t.success2_amount), 0.0),
-                success2_multi: count(fragment("CASE WHEN ? > 1 THEN 1 END", t.success2_count)),
                 success2_unique:
                   count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success2_count, t.id))
               }
@@ -403,11 +401,9 @@ defmodule ExAbby.Experiments do
               trial_count: 0,
               success1_sum: 0,
               success1_amount: 0.0,
-              success1_multi: 0,
               success1_unique: 0,
               success2_sum: 0,
               success2_amount: 0.0,
-              success2_multi: 0,
               success2_unique: 0
             }
 
@@ -420,7 +416,7 @@ defmodule ExAbby.Experiments do
             unique_count: stats.success1_unique,
             amount: stats.success1_amount,
             rate:
-              if(stats.trial_count > 0, do: stats.success1_multi / stats.trial_count, else: 0.0),
+              if(stats.trial_count > 0, do: stats.success1_unique / stats.trial_count, else: 0.0),
             amount_per_trial:
               if(stats.trial_count > 0, do: stats.success1_amount / stats.trial_count, else: 0.0)
           },
@@ -429,7 +425,7 @@ defmodule ExAbby.Experiments do
             unique_count: stats.success2_unique,
             amount: stats.success2_amount,
             rate:
-              if(stats.trial_count > 0, do: stats.success2_multi / stats.trial_count, else: 0.0),
+              if(stats.trial_count > 0, do: stats.success1_unique / stats.trial_count, else: 0.0),
             amount_per_trial:
               if(stats.trial_count > 0, do: stats.success2_amount / stats.trial_count, else: 0.0)
           }
