@@ -60,6 +60,8 @@ defmodule ExAbby do
     get_variations(socket, session, [experiment_name])
   end
 
+  defdelegate save_session_data(socket, session), to: ExAbby.LiveViewHelper
+
   @doc """
   Records successes for multiple experiments.
 

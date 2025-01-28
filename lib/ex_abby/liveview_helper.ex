@@ -56,7 +56,7 @@ defmodule ExAbby.LiveViewHelper do
     end
   end
 
-  def save_session_data(socket, session) do
+  def save_session_data(%Phoenix.LiveView.Socket{} = socket, session) do
     session_id = Map.get(session, @session_key)
 
     socket
