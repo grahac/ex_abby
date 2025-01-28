@@ -425,7 +425,7 @@ defmodule ExAbby.Experiments do
             unique_count: stats.success2_unique,
             amount: stats.success2_amount,
             rate:
-              if(stats.trial_count > 0, do: stats.success1_unique / stats.trial_count, else: 0.0),
+              if(stats.trial_count > 0, do: stats.success2_unique / stats.trial_count, else: 0.0),
             amount_per_trial:
               if(stats.trial_count > 0, do: stats.success2_amount / stats.trial_count, else: 0.0)
           }
