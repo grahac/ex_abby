@@ -60,6 +60,10 @@ defmodule ExAbby do
     get_variations(socket, session, [experiment_name])
   end
 
+  @doc """
+  Saves session info to socket. Used on pages where you call success so you do not create a new experiment before you call results
+  """
+
   defdelegate save_session_data(socket, session), to: ExAbby.LiveViewHelper
 
   @doc """
