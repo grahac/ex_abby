@@ -105,6 +105,10 @@ defmodule ExAbby.Live.ExperimentShowLive do
         color: #2563eb;
       }
 
+      .trials-cell {
+        color: #000000;
+      }
+
     .form-actions {
         margin-top: 1rem;
         display: flex;
@@ -198,7 +202,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
           />
         </td>
         <td class="variation-name"><%= row.variation_name %></td>
-        <td class="stat-cell"><%= row.trials %></td>
+      <td class="trials-cell"><%= row.trials %></td>
         <td class="stat-cell"><%= row.success1.count %></td>
         <td class="stat-cell"><%= row.success1.unique_count %></td>
         <td class="stat-cell"><%= Float.round(row.success1.amount, 2) %></td>
