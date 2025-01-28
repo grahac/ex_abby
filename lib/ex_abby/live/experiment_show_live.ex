@@ -251,9 +251,11 @@ defmodule ExAbby.Live.ExperimentShowLive do
       variation = Enum.find(experiment.variations, &(&1.id == var_id))
 
       weight =
-        if String.starts_with?(weight_str, "."),
-          do: String.to_float("0" <> weight_str),
-          else: String.to_float(weight_str)
+        cond do
+          weight_str == "0" -> 0.0
+          String.starts_with?(weight_str, ".") -> String.to_float("0" <> weight_str)
+          true -> String.to_float(weight_str)
+        end
 
       Experiments.update_weight(variation, weight)
     end)
