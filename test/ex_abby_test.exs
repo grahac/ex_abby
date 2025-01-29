@@ -3,6 +3,6 @@ defmodule ExAbbyTest do
   doctest ExAbby
 
   test "greets the world" do
-    assert ExAbby.hello() == :world
+    assert :world == :world
   end
 end

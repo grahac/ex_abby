@@ -20,6 +20,8 @@ defmodule ExAbby.Migrations do
       add(:success1_label, :string)
       add(:success2_label, :string)
       add(:description, :string)
+      add(:start_time, :string)
+      add(:end_time, :string)
       timestamps()
     end
 
@@ -75,5 +77,13 @@ defmodule ExAbby.Migrations do
     drop_if_exists(table(:exabby_variations_audit_log))
     drop_if_exists(table(:exabby_variations))
     drop_if_exists(table(:exabby_experiments))
+  end
+
+  # one time
+  def add_start_end_experiment_fields do
+    alter table(:exabby_experiments) do
+      add(:start_time, :string)
+      add(:end_time, :string)
+    end
   end
 end

@@ -371,6 +371,18 @@ defmodule ExAbby.Experiments do
     experiment = get_experiment_by_name(experiment_name)
 
     if experiment do
+      start_datetime =
+        case ExAbby.DatetimeParser.parse(experiment.start_time) do
+          {:ok, datetime} -> datetime
+          _ -> nil
+        end
+
+      end_datetime =
+        case ExAbby.DatetimeParser.parse(experiment.end_time) do
+          {:ok, datetime} -> datetime
+          _ -> nil
+        end
+
       variations =
         repo().all(
           from(v in Variation,
@@ -380,10 +392,29 @@ defmodule ExAbby.Experiments do
         )
 
       Enum.map(variations, fn v ->
+        query =
+          from(t in Trial,
+            where: t.variation_id == ^v.id
+          )
+
+        # Add date range filters if present
+        query =
+          if start_datetime do
+            from(t in query, where: t.inserted_at >= ^start_datetime)
+          else
+            query
+          end
+
+        query =
+          if end_datetime do
+            from(t in query, where: t.inserted_at <= ^end_datetime)
+          else
+            query
+          end
+
         stats =
           repo().one(
-            from(t in Trial,
-              where: t.variation_id == ^v.id,
+            from(t in query,
               select: %{
                 trial_count: count(t.id),
                 success1_sum: coalesce(sum(t.success1_count), 0),
@@ -577,6 +608,20 @@ defmodule ExAbby.Experiments do
     else
       {:error, :not_found}
     end
+  end
+
+  @doc """
+  Updates an experiment with the given attributes.
+
+  ## Examples
+
+      iex> update_experiment(experiment, %{start_time: "2024-01-01", end_time: "2024-12-31"})
+      {:ok, %Experiment{}}
+  """
+  def update_experiment(%Experiment{} = experiment, attrs) do
+    experiment
+    |> Experiment.changeset(attrs)
+    |> repo().update()
   end
 
   @doc """

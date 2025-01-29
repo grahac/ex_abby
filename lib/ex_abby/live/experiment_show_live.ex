@@ -12,7 +12,11 @@ defmodule ExAbby.Live.ExperimentShowLive do
     if(socket.assigns[:experiment]) do
       {:ok,
        socket
-       |> assign(:page_title, "ExAbby - #{socket.assigns.experiment.name}")}
+       |> assign(:page_title, "ExAbby - #{socket.assigns.experiment.name}")
+       |> assign(:start_time, socket.assigns.experiment.start_time)
+       |> assign(:end_time, socket.assigns.experiment.end_time)
+       # Add this line
+       |> assign(:from_to_error_message, nil)}
     else
       {:ok, push_navigate(socket, to: "/")}
     end
@@ -21,230 +25,274 @@ defmodule ExAbby.Live.ExperimentShowLive do
   def render(assigns) do
     ~H"""
     <style>
+      .container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 20px;
+      }
 
       .back-button {
         display: inline-block;
-        padding: 0.5rem 1rem;
+        padding: 8px 16px;
         background-color: #93c5fd;
         color: #1e3a8a;
         text-decoration: none;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
+        border-radius: 4px;
+        margin-bottom: 16px;
       }
 
-      .back-button:hover {
-        background-color: #60a5fa;
-      }
-      .experiment-container {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 1.5rem;
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 32px;
       }
 
-      .experiment-header {
-        margin-bottom: 2rem;
-      }
-
-      .experiment-title {
-        font-size: 1.875rem;
+      .title-section h2 {
+        font-size: 24px;
         font-weight: bold;
         color: #1e3a8a;
+        margin: 0;
       }
 
-      .experiment-description {
-        margin-top: 0.5rem;
-        font-size: 1.125rem;
+      .title-section p {
+        margin-top: 8px;
         color: #2563eb;
       }
 
-      .experiment-table {
+      .date-filter {
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+      }
+
+      .date-filter form {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+      }
+
+      .date-filter label {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 4px;
+        color: #475569;
+      }
+
+      .date-filter input {
+        padding: 6px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        width: 200px;
+      }
+
+      .date-filter button {
+        padding: 8px 16px;
+        background-color: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .date-filter button:hover {
+        background-color: #1d4ed8;
+      }
+
+      table {
         width: 100%;
         border-collapse: collapse;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border-radius: 0.5rem;
+        margin-top: 16px;
       }
 
-      .experiment-table th {
+      th {
         background-color: #eff6ff;
-        padding: 0.75rem 1.5rem;
+        padding: 12px;
         text-align: left;
-        font-size: 0.75rem;
-        font-weight: 500;
+        font-size: 12px;
         color: #1d4ed8;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
       }
 
-      .experiment-table td {
-        padding: 1rem 1.5rem;
+      td {
+        padding: 12px;
         border-top: 1px solid #e5e7eb;
       }
 
-      .experiment-table tbody tr:hover {
-        background-color: #eff6ff;
+      tr:hover {
+        background-color: #f8fafc;
       }
 
       .weight-input {
-        width: 5rem;
-        padding: 0.375rem;
+        width: 80px;
+        padding: 6px;
         border: 1px solid #93c5fd;
-        border-radius: 0.375rem;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      }
-
-      .weight-input:focus {
-        border-color: #3b82f6;
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-      }
-
-      .variation-name {
-        font-weight: 500;
-        color: #1e3a8a;
-      }
-
-      .stat-cell {
-        color: #2563eb;
-      }
-
-      .trials-cell {
-        color: #000000;
-      }
-
-    .form-actions {
-        margin-top: 1rem;
-        display: flex;
-        justify-content: flex-start;
+        border-radius: 4px;
       }
 
       .save-button {
+        margin-top: 16px;
+        padding: 8px 16px;
         background-color: #2563eb;
         color: white;
-        padding: 0.625rem 0.875rem;
-        border-radius: 0.375rem;
-        font-weight: 600;
-        font-size: 0.875rem;
-        cursor: pointer;
         border: none;
-      }
-
-      .save-button:hover {
-        background-color: #3b82f6;
-      }
-
-      .stat-cell-secondary {
-      color: #2563eb;
-      background-color: #f8fafc;
+        border-radius: 4px;
+        cursor: pointer;
       }
 
       .success-message {
-        margin-top: 1rem;
-        padding: 1rem;
+        margin-top: 16px;
+        padding: 16px;
         background-color: #eff6ff;
         border: 1px solid #bfdbfe;
         color: #1e40af;
-        border-radius: 0.375rem;
+        border-radius: 4px;
         display: flex;
         align-items: center;
       }
-
-      .success-icon {
-        height: 1.25rem;
-        width: 1.25rem;
-        color: #60a5fa;
-        margin-right: 0.5rem;
-      }
+    .date-filter .error-message {
+    margin-top: 12px;
+    background-color: #fde8e8;
+    border: 1px solid #f98080;
+    color: #c81e1e;
+    padding: 0.75rem 1rem;
+    border-radius: 0.25rem;
+    font-size: 14px;
+    }
     </style>
 
-    <div class="experiment-container">
+    <div class="container">
       <.link patch={"index"} class="back-button">← Back to Experiments</.link>
 
-      <div class="experiment-header">
-        <div class="experiment-title-section">
-          <h2 class="experiment-title"><%= @experiment.name %></h2>
-          <p class="experiment-description"><%= @experiment.description %></p>
+      <div class="header">
+        <div class="title-section">
+          <h2><%= @experiment.name %></h2>
+          <p><%= @experiment.description %></p>
         </div>
-      </div>
 
-      <div class="experiment-content">
-        <form phx-submit="save_weights">
-          <div class="table-container">
-            <div class="table-wrapper">
-              <div class="table-box">
-                <table class="experiment-table">
-      <thead>
-        <tr>
-          <th scope="col">Weight</th>
-          <th scope="col">Variation</th>
-          <th scope="col">Trials</th>
-          <th scope="col"><%= @experiment.success1_label || "Success" %></th>
-          <th scope="col"><%= @experiment.success1_label || "Success" %> Unique</th>
-          <th scope="col"><%= @experiment.success1_label || "Success" %> Amount</th>
-          <th scope="col"><%= @experiment.success1_label || "Success" %> Rate</th>
-          <%= if show_success2?(@experiment, @summary) do %>
-            <th scope="col"><%= @experiment.success2_label %></th>
-            <th scope="col"><%= @experiment.success2_label %> Unique</th>
-            <th scope="col"><%= @experiment.success2_label %> Amount</th>
-            <th scope="col"><%= @experiment.success2_label %> Rate</th>
-          <% end %>
-        </tr>
-      </thead>
-
-      <tbody>
-      <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
-      <tr>
-        <td>
-          <input type="number"
-            name={"weights[weight_#{v_id}]"}
-            value={w}
-            step="0.01"
-            min="0"
-            max="1"
-            class="weight-input"
-          />
-        </td>
-        <td class="variation-name"><%= row.variation_name %></td>
-      <td class="trials-cell"><%= row.trials %></td>
-        <td class="stat-cell"><%= row.success1.count %></td>
-        <td class="stat-cell"><%= row.success1.unique_count %></td>
-        <td class="stat-cell"><%= Float.round(row.success1.amount, 2) %></td>
-        <td class="stat-cell"><%= Float.round(row.success1.rate * 100, 2) %>%</td>
-        <%= if show_success2?(@experiment, @summary) do %>
-          <td class="stat-cell-secondary"><%= row.success2.count %></td>
-          <td class="stat-cell-secondary"><%= row.success2.unique_count %></td>
-          <td class="stat-cell-secondary"><%= Float.round(row.success2.amount, 2) %></td>
-          <td class="stat-cell-secondary"><%= Float.round(row.success2.rate * 100, 2) %>%</td>
-        <% end %>
-      </tr>
-      <% end %>
-      </tbody>
-    </table>
-              </div>
+        <div class="date-filter">
+          <form phx-submit="update_date_range">
+            <div>
+              <label>From</label>
+              <input type="text" name="start_time" value={@start_time} placeholder="e.g., 7 days ago or 11/15/2025 3PM" />
             </div>
-          </div>
+            <div>
+              <label>To</label>
+              <input type="text" name="end_time" value={@end_time} placeholder="e.g., now or 11/15/2025 3PM" />
+            </div>
+            <button type="submit">Update Range</button>
+          </form>
+          <%= if @from_to_error_message do %>
+            <div class="error-message">
+              <%= @from_to_error_message %>
+            </div>
+          <% end %>
+        </div>
+    </div>
 
-          <div class="form-actions">
-            <button type="submit" class="save-button">
-              Save Weights
-            </button>
-          </div>
-        </form>
+      <form phx-submit="save_weights">
+        <table>
+          <thead>
+            <tr>
+              <th>Weight</th>
+              <th>Variation</th>
+              <th>Trials</th>
+              <th><%= @experiment.success1_label || "Success" %></th>
+              <th><%= @experiment.success1_label || "Success" %> Unique</th>
+              <th><%= @experiment.success1_label || "Success" %> Amount</th>
+              <th><%= @experiment.success1_label || "Success" %> Rate</th>
+              <%= if show_success2?(@experiment, @summary) do %>
+                <th><%= @experiment.success2_label %></th>
+                <th><%= @experiment.success2_label %> Unique</th>
+                <th><%= @experiment.success2_label %> Amount</th>
+                <th><%= @experiment.success2_label %> Rate</th>
+              <% end %>
+            </tr>
+          </thead>
 
-        <%= if @updated? do %>
-          <div class="success-message">
-            <svg class="success-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-            </svg>
-            Weights updated successfully
-          </div>
-        <% end %>
-      </div>
+          <tbody>
+            <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+              <tr>
+                <td>
+                  <input type="number"
+                    name={"weights[weight_#{v_id}]"}
+                    value={w}
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    class="weight-input"
+                  />
+                </td>
+                <td><%= row.variation_name %></td>
+                <td><%= row.trials %></td>
+                <td><%= row.success1.count %></td>
+                <td><%= row.success1.unique_count %></td>
+                <td><%= Float.round(row.success1.amount, 2) %></td>
+                <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+                <%= if show_success2?(@experiment, @summary) do %>
+                  <td><%= row.success2.count %></td>
+                  <td><%= row.success2.unique_count %></td>
+                  <td><%= Float.round(row.success2.amount, 2) %></td>
+                  <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
+                <% end %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <button type="submit" class="save-button">Save Weights</button>
+      </form>
+
+      <%= if @updated? do %>
+        <div class="success-message">
+          Weights updated successfully
+        </div>
+      <% end %>
+
+
+
     </div>
     """
   end
 
+  def handle_event(
+        "update_date_range",
+        %{"start_time" => start_time, "end_time" => end_time},
+        socket
+      ) do
+    with {:ok, parsed_start} <- validate_datetime(start_time, "from"),
+         {:ok, parsed_end} <- validate_datetime(end_time, "to") do
+      dbg(parsed_start)
+      dbg(parsed_end)
+
+      {:ok, updated_experiment} =
+        Experiments.update_experiment(socket.assigns.experiment, %{
+          start_time: start_time,
+          end_time: end_time
+        })
+
+      {:noreply,
+       socket
+       |> assign(:experiment, updated_experiment)
+       |> assign(:start_time, start_time)
+       |> assign(:end_time, end_time)
+       |> load_experiment(updated_experiment.id)}
+    else
+      {:error, message} ->
+        Process.send_after(self(), :clear_error, 5000)
+        {:noreply, assign(socket, :from_to_error_message, message)}
+    end
+  end
+
   def handle_event("save_weights", %{"weights" => weights_params}, socket) do
     experiment = socket.assigns.experiment
+
+    now = DateTime.utc_now()
+    formatted_time = Calendar.strftime(now, "%m/%d/%Y %I:%M%p UTC")
+
+    {:ok, _updated_experiment} =
+      Experiments.update_experiment(experiment, %{start_time: formatted_time})
 
     Enum.each(weights_params, fn {"weight_" <> var_id_str, weight_str} ->
       var_id = String.to_integer(var_id_str)
@@ -263,7 +311,12 @@ defmodule ExAbby.Live.ExperimentShowLive do
     {:noreply,
      socket
      |> load_experiment(socket.assigns.experiment.id)
+     |> assign(:start_time, formatted_time)
      |> assign(:updated?, true)}
+  end
+
+  def handle_info(:clear_error, socket) do
+    {:noreply, assign(socket, :from_to_error_message, nil)}
   end
 
   defp load_experiment(socket, id) do
@@ -290,5 +343,15 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
   defp build_weights_form(variations) do
     for v <- variations, do: {v.id, v.name, v.weight}
+  end
+
+  defp validate_datetime(nil, _field), do: {:ok, nil}
+  defp validate_datetime("", _field), do: {:ok, nil}
+
+  defp validate_datetime(datetime_str, field) do
+    case ExAbby.DatetimeParser.parse(datetime_str) do
+      {:ok, _datetime} -> {:ok, datetime_str}
+      nil -> {:error, "Invalid datetime field for '#{field}' field "}
+    end
   end
 end
