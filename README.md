@@ -2,10 +2,11 @@
 
 **ExAbby** is a minimal A/B testing library for Elixir/Phoenix.  
 
-*Note: This was created with my friends Claude and C. Hat GPT. The code is working but not necessarily something I am proud of yet. It feels a bit too spaghetti code and inconsistent for my liking. Also it is currently non-performant so be careful under load.  I plan to continue to refactor/change it as I come across issues.  There are also a ton of optimizations needed.*
+*Caveat: This was created over a weekend with GPT/Claude. The code is working but still needs a lot of cleanup and optimizations, which I'll do as I run into problems.   As it stands, it is working under low load in production settings providing a super easy way to AB test Phoenix and Liveview using assigns.
+
 
 ## Why Ex Abby? 
-I have found there are no super simple ways to get ab testing working for smaller sites. You have to pay $$ or use a complex system.  And everything has moved to feature tagging. This experiment framework is based on something we built in-house for a consumer company that reached virality co-efficients of 1.0 a few times.  And the goal is to make it super easy to use in Liveview environments. 
+I have found there are no super simple ways to get ab testing working for smaller sites in Elixir. You have to pay $$ or use a complex system.  And everything has moved to feature tagging. This experiment framework is based on something we built in-house for a previous company that reached virality co-efficients of 1.0 a few times.  And the goal is to make it super easy to use in Liveview environments. 
 
 This is really early and the API is 100% likely to change. Feedback is appreciated! 
 
@@ -18,10 +19,14 @@ It supports:
 - LiveView helpers (checking `connected?/1` and storing assigned variation)
 - Admin LiveViews 
 - Upserting experiments/variations with optional weight updates
+- Reviewing results over different time periods.
+- ability to toggle variations by user or session for testing
 
 Coming in the future
-- ability to toggle variations by user or session for testing
 - armed bandits
+- optimizations / caching
+- auto-archiving / deletion of old entries
+- combining user and session data so you can see how users perform from session-based signup experiments (i.e. how good are the users when you promote how "easy" your product is vs how "amazing" it is). 
 - statistical significance
 - better UX of admin screens
 - So much cleanup
