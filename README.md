@@ -2,7 +2,7 @@
 
 **ExAbby** is a minimal A/B testing library for Elixir/Phoenix.  
 
-*Caveat: This was created over a weekend with GPT/Claude. The code is working but still needs a lot of cleanup and optimizations, which I'll do as I run into problems.   As it stands, it is working under low load in production settings providing a super easy way to AB test Phoenix and Liveview using assigns.
+*Caveat: This was created primarily over a weekend with the help of Chat GPT/Claude. The code is working but still needs a lot of cleanup and optimizations, which I'll do as I run into problems.   As it stands, it is working under low load in production settings providing a super easy way to AB test Phoenix and Liveview using assigns.*
 
 
 ## Why Ex Abby? 
