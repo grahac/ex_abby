@@ -29,11 +29,13 @@ defmodule ExAbby.PhoenixHelper do
     new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
 
     new_variations =
-      Enum.map(new_experiments, fn experiment_name ->
-        variation = get_session_exp_variation_by_id(session_id, experiment_name)
-        {experiment_name, variation.name}
+      Enum.reduce(new_experiments, %{}, fn experiment_name, acc ->
+        case get_session_exp_variation_by_id(session_id, experiment_name) do
+          nil -> acc
+          :error -> acc
+          variation -> Map.put(acc, experiment_name, variation.name)
+        end
       end)
-      |> Map.new()
 
     # Merge existing and new variations
     updated_trials = Map.merge(existing_trials, new_variations)
