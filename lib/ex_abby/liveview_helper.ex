@@ -6,6 +6,7 @@ defmodule ExAbby.LiveViewHelper do
   """
   import Phoenix.Component, only: [assign: 3]
   alias ExAbby.PhoenixHelper
+  alias ExAbby.Experiments
   require Logger
   @session_key "ex_abby_session_id"
 
@@ -53,6 +54,36 @@ defmodule ExAbby.LiveViewHelper do
       )
 
       socket
+    end
+  end
+
+  @doc """
+  Sets a specific variation for a session-based experiment in LiveView.
+  Returns {:ok, trial} if successful, {:error, reason} otherwise.
+  """
+  def set_session_exp_variation_lv(socket, experiment_name, variation_name) do
+    cond do
+      not Phoenix.LiveView.connected?(socket) ->
+        {:error, :not_connected, socket}
+
+      is_nil(socket.assigns[:ex_abby_session_id]) ->
+        {:error, :no_session_id, socket}
+
+      true ->
+        case Experiments.set_session_trial_variation(
+               socket.assigns.ex_abby_session_id,
+               experiment_name,
+               variation_name
+             ) do
+          {:ok, trial} ->
+            existing_trials = Map.get(socket.assigns, :ex_abby_trials, %{})
+            updated_trials = Map.put(existing_trials, experiment_name, variation_name)
+            updated_socket = assign(socket, :ex_abby_trials, updated_trials)
+            {:ok, trial, updated_socket}
+
+          {:error, reason} ->
+            {:error, reason, socket}
+        end
     end
   end
 

@@ -649,6 +649,21 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
+  Sets a specific variation for a session trial.
+  Returns {:ok, trial} if successful, {:error, reason} otherwise.
+  """
+  def set_session_trial_variation(session_id, experiment_name, variation_name) do
+    with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
+         variation when not is_nil(variation) <-
+           get_variation_by_name(experiment_name, variation_name),
+         trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
+      update_trial_variation(trial.id, variation.id)
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Updates the variation for a specific trial.
   """
   def update_trial_variation(trial_id, variation_id) do

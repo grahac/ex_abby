@@ -68,6 +68,46 @@ defmodule ExAbby.PhoenixHelper do
   end
 
   @doc """
+  Sets a specific variation for a session-based experiment.
+  Returns {:ok, trial} if successful, {:error, reason} otherwise.
+  """
+  def set_session_exp_variation(conn, experiment_name, variation_name) do
+    session_id = Plug.Conn.get_session(conn, @session_key)
+
+    if is_nil(session_id) do
+      {conn, {:error, :no_session_id}}
+    else
+      case Experiments.set_session_trial_variation(session_id, experiment_name, variation_name) do
+        {:ok, trial} ->
+          existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
+          updated_trials = Map.put(existing_trials, experiment_name, variation_name)
+          conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
+          {conn, {:ok, trial}}
+
+        error ->
+          {conn, error}
+      end
+    end
+  end
+
+  @doc """
+  Sets a specific variation for a user-based experiment.
+  Returns {:ok, trial} if successful, {:error, reason} otherwise.
+  """
+  def set_user_exp_variation(%{id: user_id}, experiment_name, variation_name)
+      when is_integer(user_id) do
+    with experiment when not is_nil(experiment) <-
+           Experiments.get_experiment_by_name(experiment_name),
+         variation when not is_nil(variation) <-
+           Experiments.get_variation_by_name(experiment_name, variation_name),
+         trial when not is_nil(trial) <- Experiments.get_trial_by_user(experiment.id, user_id) do
+      Experiments.update_trial_variation(trial.id, variation.id)
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  @doc """
   Gets or creates a variation for a session ID.
   """
   def get_session_exp_variation_by_id(session_id, experiment_name) do

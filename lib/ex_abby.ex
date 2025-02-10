@@ -34,6 +34,33 @@ defmodule ExAbby do
   end
 
   @doc """
+  Sets a specific variation for an experiment.
+  Returns {:ok, trial} if successful, {:error, reason} otherwise.
+
+  ## Examples:
+      # In Phoenix controller:
+      {:ok, trial} = ExAbby.set_variation(conn, "experiment_name", "variation_name")
+
+      # In LiveView:
+      {:ok, trial} = ExAbby.set_variation(socket, "experiment_name", "variation_name")
+
+      # For user-based:
+      {:ok, trial} = ExAbby.set_variation(user, "experiment_name", "variation_name")
+  """
+  def set_variation(%Plug.Conn{} = conn, experiment_name, variation_name) do
+    ExAbby.PhoenixHelper.set_session_exp_variation(conn, experiment_name, variation_name)
+  end
+
+  def set_variation(%Phoenix.LiveView.Socket{} = socket, experiment_name, variation_name) do
+    ExAbby.LiveViewHelper.set_session_exp_variation_lv(socket, experiment_name, variation_name)
+  end
+
+  def set_variation(%{id: user_id} = user, experiment_name, variation_name)
+      when is_integer(user_id) do
+    ExAbby.PhoenixHelper.set_user_exp_variation(user, experiment_name, variation_name)
+  end
+
+  @doc """
   Gets or creates a trial for a single experiment. Convenience wrapper around get_variations.
 
   ## Examples:
@@ -60,6 +87,12 @@ defmodule ExAbby do
     get_variations(socket, session, [experiment_name])
   end
 
+  def set_variation(%Plug.Conn{} = conn, experiment_name) do
+    {conn, variations} = get_variations(conn, [experiment_name])
+    {conn, Map.get(variations, experiment_name)}
+  end
+
+  @spec save_session_data(Phoenix.LiveView.Socket.t(), map()) :: map()
   @doc """
   Saves session info to socket. Used on pages where you call success so you do not create a new experiment before you call results
   """
