@@ -6,6 +6,8 @@ defmodule ExAbby.PhoenixHelper do
   alias ExAbby.Experiments
   @session_key "ex_abby_session_id"
 
+  require Logger
+
   @doc """
   Retrieves or assigns variations for multiple session-based experiments.
   Returns {conn, variations_map} where variations_map is %{experiment_name => variation_name}.
@@ -32,7 +34,7 @@ defmodule ExAbby.PhoenixHelper do
       Enum.reduce(new_experiments, %{}, fn experiment_name, acc ->
         case get_session_exp_variation_by_id(session_id, experiment_name) do
           nil -> acc
-          :error -> acc
+          {:error, _reason} -> acc
           variation -> Map.put(acc, experiment_name, variation.name)
         end
       end)
@@ -111,8 +113,20 @@ defmodule ExAbby.PhoenixHelper do
   Gets or creates a variation for a session ID.
   """
   def get_session_exp_variation_by_id(session_id, experiment_name) do
-    {variation, _status} = Experiments.get_or_create_session_trial(experiment_name, session_id)
-    variation
+    case Experiments.get_or_create_session_trial(experiment_name, session_id) do
+      {:error, :experiment_not_found} = error ->
+        Logger.error("Experiment not in database: #{experiment_name} #{inspect(error)}")
+
+        error
+
+      {:error, reason} = error ->
+        Logger.error("Failed to get/create session trial: #{experiment_name} #{inspect(reason)}")
+
+        error
+
+      {variation, _status} ->
+        variation
+    end
   end
 
   @doc """

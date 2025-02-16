@@ -37,13 +37,12 @@ defmodule ExAbby.LiveViewHelper do
       new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
 
       new_variations =
-        Enum.map(new_experiments, fn experiment_name ->
-          variation =
-            get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name)
-
-          {experiment_name, variation.name}
+        Enum.reduce(new_experiments, %{}, fn experiment_name, acc ->
+          case get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name) do
+            %{name: name} -> Map.put(acc, experiment_name, name)
+            {:error, :experiment_not_found} -> acc
+          end
         end)
-        |> Map.new()
 
       # Merge existing and new variations
       updated_trials = Map.merge(existing_trials, new_variations)
