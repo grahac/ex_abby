@@ -1,12 +1,12 @@
 defmodule ExAbby.Trial do
   @moduledoc """
-  Schema: exabby_trials
+  Schema: ex_abby_trials
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "exabby_trials" do
+  schema "ex_abby_trials" do
     belongs_to(:experiment, ExAbby.Experiment)
     belongs_to(:variation, ExAbby.Variation)
 

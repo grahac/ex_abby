@@ -1,12 +1,12 @@
 defmodule ExAbby.Experiment do
   @moduledoc """
-  Schema: exabby_experiments
+  Schema: ex_abby_experiments
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "exabby_experiments" do
+  schema "ex_abby_experiments" do
     field(:name, :string)
     field(:description, :string)
     field(:success1_label, :string)

@@ -2,7 +2,7 @@ defmodule ExAbby.VariationAuditLog do
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "exabby_variations_audit_log" do
+  schema "ex_abby_variations_audit_log" do
     belongs_to(:variation, ExAbby.Variation)
     field(:previous_weight, :float)
     field(:new_weight, :float)

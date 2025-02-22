@@ -14,8 +14,8 @@ defmodule ExAbby.Migrations do
   use Ecto.Migration
 
   def create_tables do
-    # exabby_experiments
-    create table(:exabby_experiments) do
+    # ex_abby_experiments
+    create table(:ex_abby_experiments) do
       add(:name, :string, null: false)
       add(:success1_label, :string)
       add(:success2_label, :string)
@@ -25,22 +25,22 @@ defmodule ExAbby.Migrations do
       timestamps()
     end
 
-    create(unique_index(:exabby_experiments, [:name]))
+    create(unique_index(:ex_abby_experiments, [:name]))
 
-    # exabby_variations
-    create table(:exabby_variations) do
-      add(:experiment_id, references(:exabby_experiments, on_delete: :delete_all), null: false)
+    # ex_abby_variations
+    create table(:ex_abby_variations) do
+      add(:experiment_id, references(:ex_abby_experiments, on_delete: :delete_all), null: false)
       add(:name, :string, null: false)
       add(:weight, :float, null: false, default: 1.0)
       timestamps()
     end
 
-    create(index(:exabby_variations, [:experiment_id]))
+    create(index(:ex_abby_variations, [:experiment_id]))
 
-    # exabby_trials
-    create table(:exabby_trials) do
-      add(:experiment_id, references(:exabby_experiments, on_delete: :delete_all), null: false)
-      add(:variation_id, references(:exabby_variations, on_delete: :delete_all), null: false)
+    # ex_abby_trials
+    create table(:ex_abby_trials) do
+      add(:experiment_id, references(:ex_abby_experiments, on_delete: :delete_all), null: false)
+      add(:variation_id, references(:ex_abby_variations, on_delete: :delete_all), null: false)
       add(:user_id, :integer)
       add(:session_id, :string)
 
@@ -55,8 +55,8 @@ defmodule ExAbby.Migrations do
       timestamps()
     end
 
-    create table(:exabby_variations_audit_log) do
-      add(:variation_id, references(:exabby_variations, on_delete: :delete_all), null: false)
+    create table(:ex_abby_variations_audit_log) do
+      add(:variation_id, references(:ex_abby_variations, on_delete: :delete_all), null: false)
       add(:previous_weight, :float, null: false)
       add(:new_weight, :float, null: false)
       add(:changed_by, :string)
@@ -64,24 +64,24 @@ defmodule ExAbby.Migrations do
       timestamps()
     end
 
-    create(index(:exabby_variations_audit_log, [:variation_id]))
+    create(index(:ex_abby_variations_audit_log, [:variation_id]))
 
-    create(index(:exabby_trials, [:experiment_id]))
-    create(index(:exabby_trials, [:variation_id]))
-    create(index(:exabby_trials, [:user_id]))
-    create(index(:exabby_trials, [:session_id]))
+    create(index(:ex_abby_trials, [:experiment_id]))
+    create(index(:ex_abby_trials, [:variation_id]))
+    create(index(:ex_abby_trials, [:user_id]))
+    create(index(:ex_abby_trials, [:session_id]))
   end
 
   def drop_tables do
-    drop_if_exists(table(:exabby_trials))
-    drop_if_exists(table(:exabby_variations_audit_log))
-    drop_if_exists(table(:exabby_variations))
-    drop_if_exists(table(:exabby_experiments))
+    drop_if_exists(table(:ex_abby_trials))
+    drop_if_exists(table(:ex_abby_variations_audit_log))
+    drop_if_exists(table(:ex_abby_variations))
+    drop_if_exists(table(:ex_abby_experiments))
   end
 
   # one time
   def add_start_end_experiment_fields do
-    alter table(:exabby_experiments) do
+    alter table(:ex_abby_experiments) do
       add(:start_time, :string)
       add(:end_time, :string)
     end

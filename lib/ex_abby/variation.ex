@@ -1,12 +1,12 @@
 defmodule ExAbby.Variation do
   @moduledoc """
-  Schema: exabby_variations
+  Schema: ex_abby_variations
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "exabby_variations" do
+  schema "ex_abby_variations" do
     belongs_to(:experiment, ExAbby.Experiment)
     field(:name, :string)
     field(:weight, :float, default: 1.0)

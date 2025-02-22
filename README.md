@@ -96,9 +96,9 @@ Where `MyApp.Repo` is your **Ecto Repo** module.
 
 ExAbby provides Ecto migrations that create three tables:
 
-- `exabby_experiments`
-- `exabby_variations`
-- `exabby_trials`
+- `ex_abby_experiments`
+- `ex_abby_variations`
+- `ex_abby_trials`
 
 In your host app, generate a new migration:
 
