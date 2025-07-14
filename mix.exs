@@ -23,7 +23,7 @@ defmodule ExAbby.MixProject do
   defp deps do
     [
       {:ecto_sql, "~> 3.10"},
-      {:phoenix_live_view, "~> 0.18"},
+      {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.14"}
       # If needed, :phoenix_html, etc.
     ]
