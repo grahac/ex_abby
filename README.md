@@ -14,6 +14,7 @@ It supports:
 
 - Ecto-based storage (Experiments, Variations, Trials)
 - Session-based or User-based assignment
+- Flexible ID support: structs, integers, or strings
 - Weighted randomization
 - Recording success events
 - LiveView helpers (checking `connected?/1` and storing assigned variation)
@@ -250,6 +251,14 @@ end
 
 ## Usage in Controllers
 
+ExAbby supports multiple ways to identify users and sessions:
+
+- **Plug.Conn** - For session-based experiments in controllers
+- **Phoenix.LiveView.Socket** - For session-based experiments in LiveView
+- **User struct** - Any struct/map with an `id` field (e.g., `%{id: 123}`)
+- **Integer ID** - Pass user ID directly (e.g., `123`)
+- **String ID** - Pass session ID directly (e.g., `"session_abc123"`)
+
 ### Session-based Example
 
 In a controller action (e.g., `PageController`):
@@ -305,6 +314,35 @@ def record_dashboard_success(conn, _params) do
   redirect(conn, to: "/thanks")
 end
 ```
+
+### Direct ID Usage
+
+ExAbby now supports passing IDs directly without wrapping in a struct:
+
+```elixir
+# Using integer user IDs directly
+user_id = 12345
+variation = ExAbby.get_variation(user_id, "experiment_name")
+variations = ExAbby.get_variations(user_id, ["exp1", "exp2"])
+
+# Record success with user ID
+ExAbby.record_success(user_id, "experiment_name")
+ExAbby.record_successes(user_id, ["exp1", "exp2"], amount: 99.99)
+
+# Using session IDs directly (strings)
+session_id = "abc123xyz"
+variation = ExAbby.get_variation(session_id, "experiment_name")
+variations = ExAbby.get_variations(session_id, ["exp1", "exp2"])
+
+# Record success with session ID
+ExAbby.record_success(session_id, "experiment_name")
+ExAbby.record_successes(session_id, ["exp1", "exp2"], success_type: :success2)
+```
+
+This is useful when:
+- You only have the user ID (not the full user struct)
+- You're working with session IDs from external systems
+- You want to run A/B tests in background jobs or processes without full context
 
 
 ## Usage in LiveView

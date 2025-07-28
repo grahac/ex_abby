@@ -64,8 +64,7 @@ defmodule ExAbby.PhoenixHelper do
   searching trials by user_id.
   """
   def get_user_exp_variation(%{id: user_id}, experiment_name) when is_integer(user_id) do
-    experiment = Experiments.get_or_create_experiment(experiment_name)
-    {variation, _status} = Experiments.get_or_create_user_trial(experiment.id, user_id)
+    {variation, _status} = Experiments.get_or_create_user_trial(experiment_name, user_id)
     variation
   end
 
@@ -107,6 +106,20 @@ defmodule ExAbby.PhoenixHelper do
     else
       nil -> {:error, :not_found}
     end
+  end
+
+  @doc """
+  Retrieves variations for multiple session-based experiments using session ID directly.
+  Returns a map of %{experiment_name => variation_name}.
+  """
+  def get_session_exp_variations_by_id(session_id, experiment_names) when is_list(experiment_names) do
+    Enum.reduce(experiment_names, %{}, fn experiment_name, acc ->
+      case get_session_exp_variation_by_id(session_id, experiment_name) do
+        nil -> acc
+        {:error, _reason} -> acc
+        variation -> Map.put(acc, experiment_name, variation.name)
+      end
+    end)
   end
 
   @doc """

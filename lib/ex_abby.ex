@@ -28,6 +28,16 @@ defmodule ExAbby do
     ExAbby.PhoenixHelper.get_user_exp_variations(user, experiment_names)
   end
 
+  def get_variations(user_id, experiment_names)
+      when is_integer(user_id) and is_list(experiment_names) do
+    ExAbby.PhoenixHelper.get_user_exp_variations(%{id: user_id}, experiment_names)
+  end
+
+  def get_variations(session_id, experiment_names)
+      when is_binary(session_id) and is_list(experiment_names) do
+    ExAbby.PhoenixHelper.get_session_exp_variations_by_id(session_id, experiment_names)
+  end
+
   def get_variations(%Phoenix.LiveView.Socket{} = socket, session, experiment_names)
       when is_list(experiment_names) do
     ExAbby.LiveViewHelper.fetch_session_exp_variations_lv(socket, session, experiment_names)
@@ -80,6 +90,16 @@ defmodule ExAbby do
 
   def get_variation(%{id: user_id} = user, experiment_name) when is_integer(user_id) do
     variations = get_variations(user, [experiment_name])
+    Map.get(variations, experiment_name)
+  end
+
+  def get_variation(user_id, experiment_name) when is_integer(user_id) do
+    variations = get_variations(user_id, [experiment_name])
+    Map.get(variations, experiment_name)
+  end
+
+  def get_variation(session_id, experiment_name) when is_binary(session_id) do
+    variations = get_variations(session_id, [experiment_name])
     Map.get(variations, experiment_name)
   end
 
@@ -136,6 +156,16 @@ defmodule ExAbby do
   def record_successes(%{id: user_id} = _user, experiment_names, opts)
       when is_list(experiment_names) and is_integer(user_id) do
     ExAbby.Experiments.record_user_successes(user_id, experiment_names, opts)
+  end
+
+  def record_successes(user_id, experiment_names, opts)
+      when is_integer(user_id) and is_list(experiment_names) do
+    ExAbby.Experiments.record_user_successes(user_id, experiment_names, opts)
+  end
+
+  def record_successes(session_id, experiment_names, opts)
+      when is_binary(session_id) and is_list(experiment_names) do
+    ExAbby.PhoenixHelper.record_successes_for_session_id(session_id, experiment_names, opts)
   end
 
   @doc """
