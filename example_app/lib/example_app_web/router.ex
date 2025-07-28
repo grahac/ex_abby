@@ -20,6 +20,7 @@ defmodule ExampleAppWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/index", PageController, :redirect_to_home
     live "/button-test-live", ButtonTestLive
     get "/button-test", ButtonTest.ButtonTestController, :index
     post "/button-test/convert", ButtonTest.ButtonTestController, :convert
