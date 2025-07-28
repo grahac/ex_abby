@@ -18,6 +18,7 @@ defmodule ExAbby.Router do
   defmacro ex_abby_admin_routes(_opts \\ []) do
     quote do
       # These are the LiveViews for your A/B test admin pages:
+      live("/ex_abby", ExAbby.Live.ExperimentIndexLive)
       live("/ex_abby/trials", ExAbby.Live.TrialManagementLive)
       live("/ex_abby/index", ExAbby.Live.ExperimentIndexLive)
       live("/ex_abby/:id", ExAbby.Live.ExperimentShowLive)
