@@ -249,40 +249,26 @@ defmodule ExAbby.Experiments do
   """
 
   def record_success_for_user(experiment_name, user_id, opts \\ []) do
-    case get_or_create_user_trial(experiment_name, user_id) do
-      {:error, :experiment_not_found} ->
-        Logger.warning("Failed to record success: Experiment '#{experiment_name}' not found")
-        {:error, :experiment_not_found}
-
-      {_variation, _status} when is_nil(user_id) ->
-        Logger.warning(
-          "Failed to record success: user_id is nil for experiment '#{experiment_name}'"
-        )
-
-        {:error, :user_id_nil}
-
-      {variation, status} ->
-        record_success(variation, opts)
-        {:ok, {variation, status}}
+    with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
+         trial when not is_nil(trial) <- get_trial_by_user(experiment.id, user_id) do
+      record_success(trial, opts)
+      {:ok, trial}
+    else
+      nil ->
+        Logger.warning("Failed to record success: No existing trial found for user #{user_id} in experiment '#{experiment_name}'")
+        {:error, :no_trial_found}
     end
   end
 
-  def record_success_for_session(experiment_name, session_id) do
-    case get_or_create_session_trial(experiment_name, session_id) do
-      {:error, :experiment_not_found} ->
-        Logger.warning("Failed to record success: Experiment '#{experiment_name}' not found")
-        {:error, :experiment_not_found}
-
-      {_variation, _status} when is_nil(session_id) ->
-        Logger.warning(
-          "Failed to record success: session_id is nil for experiment '#{experiment_name}'"
-        )
-
-        {:error, :session_id_nil}
-
-      {variation, status} ->
-        record_success(variation)
-        {:ok, {variation, status}}
+  def record_success_for_session(experiment_name, session_id, opts \\ []) do
+    with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
+         trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
+      record_success(trial, opts)
+      {:ok, trial}
+    else
+      nil ->
+        Logger.warning("Failed to record success: No existing trial found for session #{session_id} in experiment '#{experiment_name}'")
+        {:error, :no_trial_found}
     end
   end
 
