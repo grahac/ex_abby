@@ -21,15 +21,33 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
-  Lists all experiments with their variations preloaded.
+  Lists experiments with their variations preloaded.
+
+  ## Options
+    * `:status` - Filter by status: `:active`, `:archived`, or `:all` (default: `:all`)
+
+  ## Examples
+      list_experiments()                      # All experiments
+      list_experiments(status: :active)       # Only active (non-archived)
+      list_experiments(status: :archived)     # Only archived
   """
-  def list_experiments do
-    repo().all(
+  def list_experiments(opts \\ []) do
+    status = Keyword.get(opts, :status, :all)
+
+    base_query =
       from(e in Experiment,
         order_by: [desc: e.inserted_at],
         preload: [:variations]
       )
-    )
+
+    query =
+      case status do
+        :active -> from(e in base_query, where: is_nil(e.archived_at))
+        :archived -> from(e in base_query, where: not is_nil(e.archived_at))
+        :all -> base_query
+      end
+
+    repo().all(query)
   end
 
   @doc """
@@ -109,6 +127,13 @@ defmodule ExAbby.Experiments do
 
   @doc """
   Creates or updates an experiment with variations.
+
+  ## Options
+    * `:update_weights` - Whether to update existing variation weights (default: true)
+    * `:success1_label` - Label for success1 metric
+    * `:success2_label` - Label for success2 metric
+    * `:archived` - Set to true to archive the experiment (only updates if explicitly provided)
+    * `:winner` - Winner variation name (string) - only used when archived: true
   """
   def upsert_experiment_and_update_weights(
         experiment_name,
@@ -126,13 +151,38 @@ defmodule ExAbby.Experiments do
         create_new_experiment_with_variations(experiment_name, description, variations, opts)
 
       experiment ->
-        # Update experiment attributes
-        experiment
-        |> Experiment.changeset(%{
+        # Build base attributes
+        base_attrs = %{
           description: description,
           success1_label: success1_label,
           success2_label: success2_label
-        })
+        }
+
+        # Only update archived fields if explicitly provided in opts
+        attrs =
+          if Keyword.has_key?(opts, :archived) do
+            archived = Keyword.get(opts, :archived)
+            winner_name = Keyword.get(opts, :winner)
+
+            if archived do
+              winner_variation_id = resolve_winner_variation_id(experiment, winner_name)
+
+              Map.merge(base_attrs, %{
+                archived_at: DateTime.utc_now() |> DateTime.truncate(:second),
+                winner_variation_id: winner_variation_id
+              })
+            else
+              Map.merge(base_attrs, %{
+                archived_at: nil,
+                winner_variation_id: nil
+              })
+            end
+          else
+            base_attrs
+          end
+
+        experiment
+        |> Experiment.changeset(attrs)
         |> repo().update()
 
         if update_weights do
@@ -180,6 +230,7 @@ defmodule ExAbby.Experiments do
 
   @doc """
   Gets or creates a trial for a session.
+  Returns {:error, :experiment_archived} if the experiment is archived.
   """
   def get_or_create_session_trial(experiment_name, session_id) do
     experiment = get_experiment_by_name(experiment_name)
@@ -188,6 +239,9 @@ defmodule ExAbby.Experiments do
       nil ->
         Logger.warning("Experiment not found #{experiment_name}")
         {:error, :experiment_not_found}
+
+      %{archived_at: archived_at} when not is_nil(archived_at) ->
+        {:error, :experiment_archived}
 
       experiment ->
         case get_trial_by_session(experiment.id, session_id) do
@@ -213,6 +267,18 @@ defmodule ExAbby.Experiments do
     )
   end
 
+  @doc """
+  Gets all trials for a session ID across all experiments.
+  """
+  def get_all_trials_by_session(session_id) do
+    repo().all(
+      from(t in Trial,
+        where: t.session_id == ^session_id,
+        preload: [:experiment]
+      )
+    )
+  end
+
   def get_or_create_user_trials(experiment_names, user_id) when is_list(experiment_names) do
     Enum.map(experiment_names, fn experiment_name ->
       get_or_create_user_trial(experiment_name, user_id)
@@ -221,6 +287,7 @@ defmodule ExAbby.Experiments do
 
   @doc """
   Gets or creates a trial for a user.
+  Returns {:error, :experiment_archived} if the experiment is archived.
   """
   def get_or_create_user_trial(experiment_name, user_id) do
     experiment = get_experiment_by_name(experiment_name)
@@ -228,8 +295,10 @@ defmodule ExAbby.Experiments do
     case experiment do
       nil ->
         Logger.warning("Experiment not found #{experiment_name}")
-
         {:error, :experiment_not_found}
+
+      %{archived_at: archived_at} when not is_nil(archived_at) ->
+        {:error, :experiment_archived}
 
       experiment ->
         case get_trial_by_user(experiment.id, user_id) do
@@ -327,6 +396,51 @@ defmodule ExAbby.Experiments do
 
   defp get_success_fields(:success1), do: {:success1_count, :success1_date, :success1_amount}
   defp get_success_fields(:success2), do: {:success2_count, :success2_date, :success2_amount}
+
+  @doc """
+  Links a session-based trial to a user by updating the trial's user_id.
+  This allows tracking the same experiment across both session and user contexts.
+  
+  Can be called with a list of experiment names or :all to link all session experiments.
+  
+  Returns {:ok, results} on success, {:error, details} on partial/full failure.
+  """
+  def link_session_to_user(session_id, user_id, :all) do
+    trials = get_all_trials_by_session(session_id)
+    experiment_names = Enum.map(trials, fn trial -> trial.experiment.name end)
+    link_session_to_user(session_id, user_id, experiment_names)
+  end
+
+  def link_session_to_user(session_id, user_id, experiment_names) when is_list(experiment_names) do
+    results = Enum.map(experiment_names, fn experiment_name ->
+      case link_single_session_to_user(session_id, user_id, experiment_name) do
+        {:ok, trial} -> {experiment_name, {:ok, trial}}
+        {:error, reason} -> {experiment_name, {:error, reason}}
+      end
+    end)
+    
+    successful = for {name, {:ok, _trial}} <- results, do: name
+    failed = for {name, {:error, _reason}} <- results, do: name
+    
+    if Enum.empty?(failed) do
+      {:ok, Map.new(results)}
+    else
+      {:error, %{successful: successful, failed: failed}}
+    end
+  end
+
+  defp link_single_session_to_user(session_id, user_id, experiment_name) do
+    with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
+         trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
+      trial
+      |> Changeset.change(%{user_id: user_id})
+      |> repo().update()
+    else
+      nil ->
+        Logger.warning("Failed to link session to user: No trial found for session #{session_id} in experiment '#{experiment_name}'")
+        {:error, :no_trial_found}
+    end
+  end
 
   @doc """
   Returns a summary of results for a given experiment:
@@ -611,6 +725,56 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
+  Archives an experiment, optionally setting a winner variation.
+  Archived experiments will not accept new trials.
+
+  ## Arguments
+    * `experiment_id` - The ID of the experiment to archive
+    * `winner_variation` - Optional winner: variation ID (integer) or name (string)
+
+  ## Examples
+      archive_experiment(123)                    # Archive without winner
+      archive_experiment(123, "variant_a")       # Archive with winner by name
+      archive_experiment(123, 456)               # Archive with winner by ID
+  """
+  def archive_experiment(experiment_id, winner_variation \\ nil) do
+    experiment = get_experiment_by_id(experiment_id)
+
+    winner_variation_id = resolve_winner_variation_id(experiment, winner_variation)
+
+    experiment
+    |> Experiment.changeset(%{
+      archived_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      winner_variation_id: winner_variation_id
+    })
+    |> repo().update()
+  end
+
+  @doc """
+  Unarchives an experiment, clearing the winner variation.
+  """
+  def unarchive_experiment(experiment_id) do
+    experiment = get_experiment_by_id(experiment_id)
+
+    experiment
+    |> Experiment.changeset(%{
+      archived_at: nil,
+      winner_variation_id: nil
+    })
+    |> repo().update()
+  end
+
+  defp resolve_winner_variation_id(_experiment, nil), do: nil
+  defp resolve_winner_variation_id(_experiment, id) when is_integer(id), do: id
+
+  defp resolve_winner_variation_id(experiment, name) when is_binary(name) do
+    case get_variation_by_name(experiment.name, name) do
+      nil -> nil
+      variation -> variation.id
+    end
+  end
+
+  @doc """
   Gets all trials for a user, grouped by experiment.
   """
   def get_user_trials(user_id) do
@@ -675,20 +839,47 @@ defmodule ExAbby.Experiments do
   # ------------------------------------------------------------------
 
   defp create_new_experiment_with_variations(name, description, variations, opts) do
-    exp_changeset =
-      %Experiment{}
-      |> Experiment.changeset(%{
-        name: name,
-        description: description,
-        success1_label: Keyword.get(opts, :success1_label),
-        success2_label: Keyword.get(opts, :success2_label)
-      })
+    # Build base attributes
+    base_attrs = %{
+      name: name,
+      description: description,
+      success1_label: Keyword.get(opts, :success1_label),
+      success2_label: Keyword.get(opts, :success2_label)
+    }
+
+    # Add archived fields if explicitly provided
+    attrs =
+      if Keyword.get(opts, :archived) do
+        Map.merge(base_attrs, %{
+          archived_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+      else
+        base_attrs
+      end
+
+    exp_changeset = Experiment.changeset(%Experiment{}, attrs)
 
     case repo().insert(exp_changeset) do
       {:ok, experiment} ->
         for {var_name, weight} <- variations do
           create_variation(experiment, var_name, weight)
         end
+
+        # Set winner after variations are created (need variation ID)
+        experiment =
+          if Keyword.get(opts, :archived) && Keyword.has_key?(opts, :winner) do
+            winner_name = Keyword.get(opts, :winner)
+            winner_variation_id = resolve_winner_variation_id(experiment, winner_name)
+
+            {:ok, updated_exp} =
+              experiment
+              |> Experiment.changeset(%{winner_variation_id: winner_variation_id})
+              |> repo().update()
+
+            updated_exp
+          else
+            experiment
+          end
 
         {:ok, experiment}
 

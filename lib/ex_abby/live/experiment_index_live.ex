@@ -9,8 +9,18 @@ defmodule ExAbby.Live.ExperimentIndexLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:experiments, Experiments.list_experiments())
+     |> assign(:filter, :active)
+     |> assign(:experiments, Experiments.list_experiments(status: :active))
      |> assign(:page_title, "ExAbby - Index")}
+  end
+
+  def handle_event("filter", %{"status" => status}, socket) do
+    status_atom = String.to_existing_atom(status)
+
+    {:noreply,
+     socket
+     |> assign(:filter, status_atom)
+     |> assign(:experiments, Experiments.list_experiments(status: status_atom))}
   end
 
   def render(assigns) do
@@ -90,6 +100,43 @@ defmodule ExAbby.Live.ExperimentIndexLive do
         background-color: #1d4ed8;
       }
 
+      .filter-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #e5e7eb;
+      }
+
+      .tab-button {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-weight: 500;
+        color: #6b7280;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+      }
+
+      .tab-button:hover {
+        color: #1d4ed8;
+      }
+
+      .tab-button.active {
+        color: #1d4ed8;
+        border-bottom-color: #1d4ed8;
+      }
+
+      .status-active {
+        color: #059669;
+        font-weight: 500;
+      }
+
+      .status-archived {
+        color: #9ca3af;
+        font-weight: 500;
+      }
+
     </style>
 
 
@@ -101,28 +148,57 @@ defmodule ExAbby.Live.ExperimentIndexLive do
         </.link>
       </div>
 
+      <div class="filter-tabs">
+        <button
+          class={"tab-button #{if @filter == :active, do: "active"}"}
+          phx-click="filter"
+          phx-value-status="active"
+        >
+          Active
+        </button>
+        <button
+          class={"tab-button #{if @filter == :archived, do: "active"}"}
+          phx-click="filter"
+          phx-value-status="archived"
+        >
+          Archived
+        </button>
+        <button
+          class={"tab-button #{if @filter == :all, do: "active"}"}
+          phx-click="filter"
+          phx-value-status="all"
+        >
+          All
+        </button>
+      </div>
+
       <table class="experiments-table">
         <thead>
           <tr>
             <th>Actions</th>
             <th>Experiment Name</th>
             <th>Description</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           <%= for e <- @experiments do %>
-
             <tr>
               <td>
                 <.link patch={"#{e.id}"} class="view-link">
                   View
                 </.link>
               </td>
-              <td><%= e.name %></td>
-              <td><%= e.description %></td>
-
+              <td>{e.name}</td>
+              <td>{e.description}</td>
+              <td>
+                <%= if e.archived_at do %>
+                  <span class="status-archived">Archived</span>
+                <% else %>
+                  <span class="status-active">Active</span>
+                <% end %>
+              </td>
             </tr>
-
           <% end %>
         </tbody>
       </table>

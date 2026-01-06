@@ -3,7 +3,8 @@
     "allow": [
       "Bash(mix compile)",
       "Bash(mix test)",
-      "Bash(mix test:*)"
+      "Bash(mix test:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

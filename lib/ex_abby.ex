@@ -175,6 +175,34 @@ defmodule ExAbby do
     record_successes(context, [experiment_name], opts)
   end
 
+  @doc """
+  Links session-based trials to a user. This allows tracking experiments across both session and user contexts.
+  
+  ## Examples:
+      # Link all session experiments (default):
+      conn = ExAbby.link_session_to_user(conn, user)
+      
+      # Link specific experiments:
+      conn = ExAbby.link_session_to_user(conn, user, ["exp1", "exp2"])
+      
+      # In LiveView:
+      socket = ExAbby.link_session_to_user(socket, user)
+      
+      # With user_id directly:
+      conn = ExAbby.link_session_to_user(conn, user_id)
+  
+  Returns updated conn/socket with the link operation results.
+  """
+  def link_session_to_user(context, user, experiments \\ :all)
+  
+  def link_session_to_user(%Plug.Conn{} = conn, user, experiments) do
+    ExAbby.PhoenixHelper.link_session_to_user_conn(conn, user, experiments)
+  end
+  
+  def link_session_to_user(%Phoenix.LiveView.Socket{} = socket, user, experiments) do
+    ExAbby.LiveViewHelper.link_session_to_user_lv(socket, user, experiments)
+  end
+
   # Admin/setup functions
   defdelegate upsert_experiment_and_update_weights(
                 experiment_name,

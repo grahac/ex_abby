@@ -14,20 +14,20 @@ It supports:
 
 - Ecto-based storage (Experiments, Variations, Trials)
 - Session-based or User-based assignment
+- **Linking session trials to users** - Track user performance from session-based experiments
+- **Archive experiments** with optional winner declaration
 - Flexible ID support: structs, integers, or strings
 - Weighted randomization
 - Recording success events
 - LiveView helpers (checking `connected?/1` and storing assigned variation)
-- Admin LiveViews 
+- Admin LiveViews with experiment filtering (Active/Archived/All)
 - Upserting experiments/variations with optional weight updates
-- Reviewing results over different time periods.
-- ability to toggle variations by user or session for testing
+- Reviewing results over different time periods
+- Ability to toggle variations by user or session for testing
 
 Coming in the future
 - armed bandits
 - optimizations / caching
-- auto-archiving / deletion of old entries
-- combining user and session data so you can see how users perform from session-based signup experiments (i.e. how good are the users when you promote how "easy" your product is vs how "amazing" it is). 
 - statistical significance
 - better UX of admin screens
 - So much cleanup
@@ -39,16 +39,17 @@ Coming in the future
 ## Table of Contents
 1. [Installation](#installation)
 2. [Configuration](#configuration)
-
 3. [Migrations](#migrations)
-4. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
-5. [Session Setup](#session-setup)
-6. [Admin Routes](#optional-admin-routes)
-
-7. [Usage in Controllers](#usage-in-controllers)
-8. [Usage in LiveView](#usage-in-liveview)
-9. [Production Deployment](#production-deployment)
-10. [Troubleshooting](#troubleshooting)
+4. [Upgrading from v0.1 to v0.2](#upgrading-from-v01-to-v02)
+5. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+6. [Session Setup](#session-setup)
+7. [Admin Routes](#admin-routes)
+8. [Usage in Controllers](#usage-in-controllers)
+9. [Usage in LiveView](#usage-in-liveview)
+10. [Linking Sessions to Users](#linking-sessions-to-users)
+11. [Archiving Experiments](#archiving-experiments)
+12. [Production Deployment](#production-deployment)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -56,20 +57,20 @@ Coming in the future
 
 1. **Add** `ex_abby` as a dependency in your Phoenix (host) app’s `mix.exs`. 
 
-   If it’s a public Hex package (or if you plan to publish it):
+   If it's a public Hex package (or if you plan to publish it):
    ```elixir
    defp deps do
      [
-       {:ex_abby, "~> 0.1.0"}
+       {:ex_abby, "~> 0.2.0"}
      ]
    end
    ```
-   
-   If it’s a **GitHub** repo (private or public):
+
+   If it's a **GitHub** repo (private or public):
    ```elixir
    defp deps do
      [
-       {:ex_abby, github: "grahac/ex_abby", tag: "0.1.0"}
+       {:ex_abby, github: "grahac/ex_abby", tag: "0.2.0"}
      ]
    end
    ```
@@ -128,6 +129,43 @@ Then run:
 ```bash
 mix ecto.migrate
 ```
+
+---
+
+## Upgrading from v0.1 to v0.2
+
+Version 0.2.0 adds experiment archiving with optional winner declaration. To upgrade:
+
+1. **Update your dependency** in `mix.exs`:
+```elixir
+{:ex_abby, "~> 0.2.0"}
+```
+
+2. **Create a new migration**:
+```bash
+mix ecto.gen.migration ex_abby_v2
+```
+
+3. **Add to the generated migration file**:
+```elixir
+defmodule MyApp.Repo.Migrations.ExAbbyV2 do
+  use Ecto.Migration
+
+  def up, do: ExAbby.Migrations.v1_to_v2()
+  def down, do: ExAbby.Migrations.v2_to_v1()
+end
+```
+
+4. **Run the migration**:
+```bash
+mix ecto.migrate
+```
+
+This adds two new columns to `ex_abby_experiments`:
+- `archived_at` - Timestamp when experiment was archived
+- `winner_variation_id` - Reference to the winning variation (optional)
+
+---
 
 ## Upserting Experiments and Updating Weights
 
@@ -421,6 +459,152 @@ Available options:
 
 ---
 
+## Linking Sessions to Users
+
+When a user signs up or logs in, you can link their session-based experiment trials to their user account. This allows you to track how users who signed up through different experiment variations perform over time.
+
+### Why Link Sessions to Users?
+
+Session-based experiments are great for testing landing pages and signup flows. But once a user creates an account, you want to track their long-term behavior (purchases, engagement, retention) tied to the original experiment variation they saw.
+
+### Usage
+
+**In Controllers (Plug.Conn):**
+```elixir
+def create(conn, %{"user" => user_params}) do
+  case Accounts.create_user(user_params) do
+    {:ok, user} ->
+      # Link all session experiments to the new user
+      conn = ExAbby.link_session_to_user(conn, user)
+
+      # Or link specific experiments only
+      conn = ExAbby.link_session_to_user(conn, user, ["signup_flow_test", "landing_page_test"])
+
+      conn
+      |> put_flash(:info, "Account created!")
+      |> redirect(to: "/dashboard")
+
+    {:error, changeset} ->
+      render(conn, "new.html", changeset: changeset)
+  end
+end
+```
+
+**In LiveView:**
+```elixir
+def handle_event("register", %{"user" => user_params}, socket) do
+  case Accounts.create_user(user_params) do
+    {:ok, user} ->
+      # Link all session experiments to the new user
+      socket = ExAbby.link_session_to_user(socket, user)
+
+      # Or link specific experiments
+      socket = ExAbby.link_session_to_user(socket, user, ["signup_flow_test"])
+
+      {:noreply, push_navigate(socket, to: "/dashboard")}
+
+    {:error, changeset} ->
+      {:noreply, assign(socket, changeset: changeset)}
+  end
+end
+```
+
+### Flexible User Identification
+
+You can pass the user in different ways:
+```elixir
+# Pass user struct (must have :id field)
+ExAbby.link_session_to_user(conn, user)
+
+# Pass user ID directly
+ExAbby.link_session_to_user(conn, 12345)
+```
+
+### What Happens When You Link
+
+1. The session trial's `user_id` field is updated to the provided user ID
+2. Future success recordings for that user will be associated with the original variation
+3. You can now analyze user-based metrics (lifetime value, retention) by experiment variation
+
+---
+
+## Archiving Experiments
+
+Once an experiment has concluded and you've determined a winner (or decided to end it), you can archive it. Archived experiments:
+
+- **Stop accepting new trials** - New users won't be assigned to the experiment
+- **Preserve existing data** - All historical trials and conversions remain
+- **Can declare a winner** - Optionally mark which variation won
+- **Are hidden by default** - Admin UI shows Active experiments by default
+
+### Archiving via Admin UI
+
+1. Navigate to `/admin/ex_abby/:id` (experiment detail page)
+2. Select an optional winner from the dropdown
+3. Click "Archive Experiment"
+
+To unarchive, click the "Unarchive" button on the archived experiment.
+
+### Archiving via Seeds
+
+You can archive experiments directly in your seeds file:
+
+```elixir
+experiments = [
+  # Active experiment
+  {
+    "current_test",
+    "Currently running experiment",
+    [{"control", 0.5}, {"variant", 0.5}],
+    [success1_label: "Signup", update_weights: false]
+  },
+
+  # Archived experiment with winner
+  {
+    "old_test",
+    "Completed experiment",
+    [{"control", 0.5}, {"variant", 0.5}],
+    [archived: true, winner: "variant", update_weights: false]
+  }
+]
+
+Enum.each(experiments, fn {name, description, variations, opts} ->
+  ExAbby.upsert_experiment_and_update_weights(name, description, variations, opts)
+end)
+```
+
+**Important:** If you archive an experiment via the Admin UI and then run seeds without `archived: true`, the experiment will **remain archived**. Seeds only modify the archived status when explicitly specified.
+
+### Archiving Programmatically
+
+```elixir
+# Archive without winner
+ExAbby.Experiments.archive_experiment(experiment_id)
+
+# Archive with winner (by variation name)
+ExAbby.Experiments.archive_experiment(experiment_id, "variant_a")
+
+# Archive with winner (by variation ID)
+ExAbby.Experiments.archive_experiment(experiment_id, 123)
+
+# Unarchive
+ExAbby.Experiments.unarchive_experiment(experiment_id)
+```
+
+### Filtering Experiments
+
+```elixir
+# List only active experiments (default in Admin UI)
+ExAbby.Experiments.list_experiments(status: :active)
+
+# List only archived experiments
+ExAbby.Experiments.list_experiments(status: :archived)
+
+# List all experiments
+ExAbby.Experiments.list_experiments(status: :all)
+```
+
+---
 
 ## Production Deployment
 

@@ -132,4 +132,35 @@ defmodule ExAbby.LiveViewHelper do
 
     PhoenixHelper.get_session_exp_variation_by_id(session_id, experiment_name)
   end
+
+  @doc """
+  Links session-based trials to a user for a LiveView socket.
+  """
+  def link_session_to_user_lv(socket, user, experiments) do
+    session_id = socket.assigns[:ex_abby_session_id]
+    
+    if session_id do
+      user_id = case user do
+        %{id: id} when is_integer(id) -> id
+        id when is_integer(id) -> id
+        _ -> nil
+      end
+      
+      if user_id do
+        case Experiments.link_session_to_user(session_id, user_id, experiments) do
+          {:ok, results} ->
+            assign(socket, :ex_abby_link_results, results)
+          {:error, details} ->
+            Logger.warning("Failed to link some session trials to user: #{inspect(details)}")
+            assign(socket, :ex_abby_link_results, {:error, details})
+        end
+      else
+        Logger.error("Invalid user provided to link_session_to_user_lv")
+        socket
+      end
+    else
+      Logger.warning("No session ID found when trying to link to user")
+      socket
+    end
+  end
 end

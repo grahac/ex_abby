@@ -197,4 +197,37 @@ defmodule ExAbby.PhoenixHelper do
   defp generate_session_id do
     :crypto.strong_rand_bytes(8) |> Base.url_encode64(padding: false)
   end
+
+  @doc """
+  Links session-based trials to a user for a Phoenix controller.
+  """
+  def link_session_to_user_conn(conn, user, experiments) do
+    session_id = Plug.Conn.get_session(conn, @session_key)
+    
+    if session_id do
+      user_id = case user do
+        %{id: id} when is_integer(id) -> id
+        id when is_integer(id) -> id
+        _ -> nil
+      end
+      
+      if user_id do
+        case Experiments.link_session_to_user(session_id, user_id, experiments) do
+          {:ok, results} ->
+            conn = Plug.Conn.assign(conn, :ex_abby_link_results, results)
+            conn
+          {:error, details} ->
+            Logger.warning("Failed to link some session trials to user: #{inspect(details)}")
+            conn = Plug.Conn.assign(conn, :ex_abby_link_results, {:error, details})
+            conn
+        end
+      else
+        Logger.error("Invalid user provided to link_session_to_user_conn")
+        conn
+      end
+    else
+      Logger.warning("No session ID found when trying to link to user")
+      conn
+    end
+  end
 end

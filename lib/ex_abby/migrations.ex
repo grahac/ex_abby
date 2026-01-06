@@ -22,6 +22,7 @@ defmodule ExAbby.Migrations do
       add(:description, :string)
       add(:start_time, :string)
       add(:end_time, :string)
+      add(:archived_at, :utc_datetime)
       timestamps()
     end
 
@@ -36,6 +37,11 @@ defmodule ExAbby.Migrations do
     end
 
     create(index(:ex_abby_variations, [:experiment_id]))
+
+    # Add winner_variation_id after variations table exists
+    alter table(:ex_abby_experiments) do
+      add(:winner_variation_id, references(:ex_abby_variations, on_delete: :nilify_all))
+    end
 
     # ex_abby_trials
     create table(:ex_abby_trials) do
@@ -84,6 +90,34 @@ defmodule ExAbby.Migrations do
     alter table(:ex_abby_experiments) do
       add(:start_time, :string)
       add(:end_time, :string)
+    end
+  end
+
+  @doc """
+  Upgrade from v1 to v2 (adds archive fields).
+
+  Usage in host app migration:
+
+      defmodule MyApp.Repo.Migrations.ExAbbyV2 do
+        use Ecto.Migration
+        def up, do: ExAbby.Migrations.v1_to_v2()
+        def down, do: ExAbby.Migrations.v2_to_v1()
+      end
+  """
+  def v1_to_v2 do
+    alter table(:ex_abby_experiments) do
+      add(:archived_at, :utc_datetime)
+      add(:winner_variation_id, references(:ex_abby_variations, on_delete: :nilify_all))
+    end
+  end
+
+  @doc """
+  Downgrade from v2 to v1 (removes archive fields).
+  """
+  def v2_to_v1 do
+    alter table(:ex_abby_experiments) do
+      remove(:archived_at)
+      remove(:winner_variation_id)
     end
   end
 end

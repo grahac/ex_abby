@@ -160,6 +160,74 @@ defmodule ExAbby.Live.ExperimentShowLive do
     border-radius: 0.25rem;
     font-size: 14px;
     }
+
+    .archive-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .archived-banner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background-color: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 4px;
+    }
+
+    .archived-label {
+      font-weight: bold;
+      color: #b45309;
+      text-transform: uppercase;
+    }
+
+    .unarchive-button {
+      margin-left: auto;
+      padding: 0.5rem 1rem;
+      background-color: #059669;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .unarchive-button:hover {
+      background-color: #047857;
+    }
+
+    .archive-form {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+
+    .archive-form select {
+      padding: 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+    }
+
+    .archive-button {
+      padding: 0.5rem 1rem;
+      background-color: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .archive-button:hover {
+      background-color: #b91c1c;
+    }
+
+    .weight-input:disabled {
+      background-color: #f3f4f6;
+      cursor: not-allowed;
+    }
     </style>
 
     <div class="container">
@@ -190,6 +258,29 @@ defmodule ExAbby.Live.ExperimentShowLive do
           <% end %>
         </div>
     </div>
+
+      <div class="archive-section">
+        <%= if @experiment.archived_at do %>
+          <div class="archived-banner">
+            <span class="archived-label">Archived</span>
+            <%= if @winner_variation do %>
+              <span>Winner: <strong>{@winner_variation.name}</strong></span>
+            <% end %>
+            <button phx-click="unarchive" class="unarchive-button">Unarchive</button>
+          </div>
+        <% else %>
+          <form phx-submit="archive" class="archive-form">
+            <label>Archive with winner (optional):</label>
+            <select name="winner_variation_id">
+              <option value="">No winner</option>
+              <%= for v <- @experiment.variations do %>
+                <option value={v.id}>{v.name}</option>
+              <% end %>
+            </select>
+            <button type="submit" class="archive-button">Archive Experiment</button>
+          </form>
+        <% end %>
+      </div>
 
       <form phx-submit="save_weights">
         <table>
@@ -222,6 +313,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
                     min="0"
                     max="1"
                     class="weight-input"
+                    disabled={not is_nil(@experiment.archived_at)}
                   />
                 </td>
                 <td><%= row.variation_name %></td>
@@ -241,7 +333,9 @@ defmodule ExAbby.Live.ExperimentShowLive do
           </tbody>
         </table>
 
-        <button type="submit" class="save-button">Save Weights</button>
+        <%= unless @experiment.archived_at do %>
+          <button type="submit" class="save-button">Save Weights</button>
+        <% end %>
       </form>
 
       <%= if @updated? do %>
@@ -315,6 +409,20 @@ defmodule ExAbby.Live.ExperimentShowLive do
      |> assign(:updated?, true)}
   end
 
+  def handle_event("archive", %{"winner_variation_id" => winner_id}, socket) do
+    winner_variation_id = if winner_id == "", do: nil, else: String.to_integer(winner_id)
+
+    {:ok, _} = Experiments.archive_experiment(socket.assigns.experiment.id, winner_variation_id)
+
+    {:noreply, load_experiment(socket, socket.assigns.experiment.id)}
+  end
+
+  def handle_event("unarchive", _params, socket) do
+    {:ok, _} = Experiments.unarchive_experiment(socket.assigns.experiment.id)
+
+    {:noreply, load_experiment(socket, socket.assigns.experiment.id)}
+  end
+
   def handle_info(:clear_error, socket) do
     {:noreply, assign(socket, :from_to_error_message, nil)}
   end
@@ -325,11 +433,19 @@ defmodule ExAbby.Live.ExperimentShowLive do
     if experiment do
       summary = Experiments.experiment_summary(experiment.name)
 
+      winner_variation =
+        if experiment.winner_variation_id do
+          Experiments.get_variation(experiment.winner_variation_id)
+        else
+          nil
+        end
+
       socket
       |> assign(:experiment, experiment)
       |> assign(:summary, summary)
       |> assign(:updated?, false)
       |> assign(:weights_form, build_weights_form(experiment.variations))
+      |> assign(:winner_variation, winner_variation)
     else
       socket
     end
