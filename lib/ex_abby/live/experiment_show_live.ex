@@ -355,11 +355,8 @@ defmodule ExAbby.Live.ExperimentShowLive do
         %{"start_time" => start_time, "end_time" => end_time},
         socket
       ) do
-    with {:ok, parsed_start} <- validate_datetime(start_time, "from"),
-         {:ok, parsed_end} <- validate_datetime(end_time, "to") do
-      dbg(parsed_start)
-      dbg(parsed_end)
-
+    with {:ok, _parsed_start} <- validate_datetime(start_time, "from"),
+         {:ok, _parsed_end} <- validate_datetime(end_time, "to") do
       {:ok, updated_experiment} =
         Experiments.update_experiment(socket.assigns.experiment, %{
           start_time: start_time,
