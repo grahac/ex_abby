@@ -24,15 +24,15 @@ defmodule ExAbby.MixProject do
     [
       {:ecto_sql, "~> 3.10"},
       {:phoenix_live_view, "~> 1.0"},
-      {:plug, "~> 1.14"}
-      # If needed, :phoenix_html, etc.
+      {:plug, "~> 1.14"},
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
 
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/your_user/ex_abby"}
+      links: %{"GitHub" => "https://github.com/grahac/ex_abby"}
     ]
   end
 end

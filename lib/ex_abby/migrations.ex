@@ -94,7 +94,7 @@ defmodule ExAbby.Migrations do
   end
 
   @doc """
-  Upgrade from v1 to v2 (adds archive fields).
+  Upgrade from v1 to v2 (adds archive fields if they don't exist).
 
   Usage in host app migration:
 
@@ -105,10 +105,16 @@ defmodule ExAbby.Migrations do
       end
   """
   def v1_to_v2 do
-    alter table(:ex_abby_experiments) do
-      add(:archived_at, :utc_datetime)
-      add(:winner_variation_id, references(:ex_abby_variations, on_delete: :nilify_all))
-    end
+    execute """
+    ALTER TABLE ex_abby_experiments
+    ADD COLUMN IF NOT EXISTS archived_at timestamp(0)
+    """
+
+    execute """
+    ALTER TABLE ex_abby_experiments
+    ADD COLUMN IF NOT EXISTS winner_variation_id bigint
+    REFERENCES ex_abby_variations(id) ON DELETE SET NULL
+    """
   end
 
   @doc """
