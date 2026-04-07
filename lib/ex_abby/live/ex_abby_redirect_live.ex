@@ -5,7 +5,12 @@ defmodule ExAbby.Live.ExAbbyRedirectLive do
   use Phoenix.LiveView
 
   def mount(_params, _session, socket) do
-    {:ok, push_navigate(socket, to: "ex_abby/index")}
+    {:ok, socket}
+  end
+
+  def handle_params(_params, uri, socket) do
+    %URI{path: path} = URI.parse(uri)
+    {:noreply, push_navigate(socket, to: "#{path}/index")}
   end
 
   def render(assigns) do
