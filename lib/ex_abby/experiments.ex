@@ -247,8 +247,13 @@ defmodule ExAbby.Experiments do
         case get_trial_by_session(experiment.id, session_id) do
           nil ->
             variation = pick_weighted_variation(experiment.id)
-            create_trial(experiment.id, variation.id, session_id, nil)
-            {variation, :created}
+
+            resolve_created_or_raced(
+              create_trial(experiment.id, variation.id, session_id, nil),
+              variation,
+              :ex_abby_trials_experiment_session_id_unique_index,
+              fn -> get_trial_by_session(experiment.id, session_id) end
+            )
 
           trial ->
             {get_variation(trial.variation_id), :existing}
@@ -304,8 +309,13 @@ defmodule ExAbby.Experiments do
         case get_trial_by_user(experiment.id, user_id) do
           nil ->
             variation = pick_weighted_variation(experiment.id)
-            create_trial(experiment.id, variation.id, nil, user_id)
-            {variation, :created}
+
+            resolve_created_or_raced(
+              create_trial(experiment.id, variation.id, nil, user_id),
+              variation,
+              :ex_abby_trials_experiment_user_id_unique_index,
+              fn -> get_trial_by_user(experiment.id, user_id) end
+            )
 
           trial ->
             {get_variation(trial.variation_id), :existing}
@@ -324,7 +334,10 @@ defmodule ExAbby.Experiments do
       {:ok, trial}
     else
       nil ->
-        Logger.warning("Failed to record success: No existing trial found for user #{user_id} in experiment '#{experiment_name}'")
+        Logger.warning(
+          "Failed to record success: No existing trial found for user #{user_id} in experiment '#{experiment_name}'"
+        )
+
         {:error, :no_trial_found}
     end
   end
@@ -336,7 +349,10 @@ defmodule ExAbby.Experiments do
       {:ok, trial}
     else
       nil ->
-        Logger.warning("Failed to record success: No existing trial found for session #{session_id} in experiment '#{experiment_name}'")
+        Logger.warning(
+          "Failed to record success: No existing trial found for session #{session_id} in experiment '#{experiment_name}'"
+        )
+
         {:error, :no_trial_found}
     end
   end
@@ -400,9 +416,9 @@ defmodule ExAbby.Experiments do
   @doc """
   Links a session-based trial to a user by updating the trial's user_id.
   This allows tracking the same experiment across both session and user contexts.
-  
+
   Can be called with a list of experiment names or :all to link all session experiments.
-  
+
   Returns {:ok, results} on success, {:error, details} on partial/full failure.
   """
   def link_session_to_user(session_id, user_id, :all) do
@@ -411,17 +427,19 @@ defmodule ExAbby.Experiments do
     link_session_to_user(session_id, user_id, experiment_names)
   end
 
-  def link_session_to_user(session_id, user_id, experiment_names) when is_list(experiment_names) do
-    results = Enum.map(experiment_names, fn experiment_name ->
-      case link_single_session_to_user(session_id, user_id, experiment_name) do
-        {:ok, trial} -> {experiment_name, {:ok, trial}}
-        {:error, reason} -> {experiment_name, {:error, reason}}
-      end
-    end)
-    
+  def link_session_to_user(session_id, user_id, experiment_names)
+      when is_list(experiment_names) do
+    results =
+      Enum.map(experiment_names, fn experiment_name ->
+        case link_single_session_to_user(session_id, user_id, experiment_name) do
+          {:ok, trial} -> {experiment_name, {:ok, trial}}
+          {:error, reason} -> {experiment_name, {:error, reason}}
+        end
+      end)
+
     successful = for {name, {:ok, _trial}} <- results, do: name
     failed = for {name, {:error, _reason}} <- results, do: name
-    
+
     if Enum.empty?(failed) do
       {:ok, Map.new(results)}
     else
@@ -432,12 +450,28 @@ defmodule ExAbby.Experiments do
   defp link_single_session_to_user(session_id, user_id, experiment_name) do
     with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
          trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
-      trial
-      |> Changeset.change(%{user_id: user_id})
-      |> repo().update()
+      # Use Trial.changeset (not a bare Changeset.change) so the user-uniqueness index
+      # surfaces as {:error, changeset} instead of raising Ecto.ConstraintError.
+      case trial |> Trial.changeset(%{user_id: user_id}) |> repo().update() do
+        {:ok, updated} ->
+          {:ok, updated}
+
+        {:error, changeset} ->
+          # The user already has a trial for this experiment, so the session trial
+          # cannot also claim that user_id. Linking is then a no-op: return the
+          # user's existing trial rather than crashing.
+          if unique_violation?(changeset, :ex_abby_trials_experiment_user_id_unique_index) do
+            {:ok, get_trial_by_user(experiment.id, user_id)}
+          else
+            {:error, changeset}
+          end
+      end
     else
       nil ->
-        Logger.warning("Failed to link session to user: No trial found for session #{session_id} in experiment '#{experiment_name}'")
+        Logger.warning(
+          "Failed to link session to user: No trial found for session #{session_id} in experiment '#{experiment_name}'"
+        )
+
         {:error, :no_trial_found}
     end
   end
@@ -906,7 +940,39 @@ defmodule ExAbby.Experiments do
       session_id: session_id,
       user_id: user_id
     })
-    |> repo().insert!()
+    |> repo().insert()
+  end
+
+  @doc false
+  # Resolves a create_trial/4 result into the public {variation, status} shape. On a lost
+  # get-or-create race (unique violation) it re-reads the winner's row via refetch_fun.
+  # Public only so the recovery path can be tested deterministically.
+  def resolve_created_or_raced(create_result, variation, index_name, refetch_fun) do
+    case create_result do
+      {:ok, _trial} ->
+        {variation, :created}
+
+      {:error, changeset} ->
+        if unique_violation?(changeset, index_name) do
+          case refetch_fun.() do
+            nil ->
+              raise "ex_abby: trial for #{index_name} vanished after a unique violation; cannot resolve variation"
+
+            trial ->
+              {get_variation(trial.variation_id), :existing}
+          end
+        else
+          raise "ex_abby: unexpected error creating trial: #{inspect(changeset.errors)}"
+        end
+    end
+  end
+
+  # Returns true if the changeset carries a unique-constraint error for the given index name.
+  defp unique_violation?(%Ecto.Changeset{errors: errors}, index_name) do
+    Enum.any?(errors, fn
+      {_field, {_msg, opts}} ->
+        opts[:constraint] == :unique and opts[:constraint_name] == Atom.to_string(index_name)
+    end)
   end
 
   defp pick_weighted_variation(experiment_id) do
