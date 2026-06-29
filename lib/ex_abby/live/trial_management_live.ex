@@ -10,6 +10,7 @@ defmodule ExAbby.Live.TrialManagementLive do
       |> assign(:user_trials_expanded, true)
       |> assign(:session_trials_expanded, true)
       |> assign(:page_title, "ExAbby - Trial page")
+      |> assign(:standalone, Map.get(session, "ex_abby_standalone", false))
       |> LiveViewHelper.save_session_data(session)
 
     {:ok, socket}
@@ -188,7 +189,7 @@ defmodule ExAbby.Live.TrialManagementLive do
 
     <div class="trial-container">
       <div class="sections-wrapper">
-      <.link patch={"index"} class="back-button">← Back to Experiments</.link>
+      <.link :if={!@standalone} patch={"index"} class="back-button">← Back to Experiments</.link>
         <.user_trials_section
           user_trials_expanded={@user_trials_expanded}
           user_id={@user_id}
