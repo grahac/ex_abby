@@ -40,5 +40,11 @@ defmodule ExAbby.Trial do
     |> validate_number(:success2_count, greater_than_or_equal_to: 0)
     |> validate_number(:success1_amount, greater_than_or_equal_to: 0)
     |> validate_number(:success2_amount, greater_than_or_equal_to: 0)
+    |> unique_constraint([:experiment_id, :session_id],
+      name: :ex_abby_trials_experiment_session_id_unique_index
+    )
+    |> unique_constraint([:experiment_id, :user_id],
+      name: :ex_abby_trials_experiment_user_id_unique_index
+    )
   end
 end
