@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-28
+
+### Added
+- `ExAbby.Migrations.add_trial_uniqueness/1` and `remove_trial_uniqueness/1` — partial unique indexes on `(experiment_id, session_id)` and `(experiment_id, user_id)` that prevent duplicate trials. Supports `concurrently: true` for large production tables.
+- `ExAbby.Migrations.deduplicate_trials/0` — merges duplicate trials (summing success counts/amounts onto the lowest-id row) so the uniqueness index can be added on databases that already contain duplicates.
+
+### Fixed
+- `get_or_create_session_trial/2` and `get_or_create_user_trial/2` are now race-safe. Concurrent requests for the same session/user no longer create duplicate trial rows or crash callers with `Ecto.MultipleResultsError`; the race loser re-reads the winner's row.
+- `link_session_to_user/3` no longer raises `Ecto.ConstraintError` when the target user already has a trial for the experiment — it returns the user's existing trial instead.
+
 ## [0.2.2] - 2026-04-06
 
 ### Fixed
