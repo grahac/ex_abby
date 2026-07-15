@@ -1,6 +1,5 @@
 defmodule ExAbby.Live.TrialManagementLive do
   use Phoenix.LiveView
-  use Phoenix.Component
   alias ExAbby.Experiments
   alias ExAbby.LiveViewHelper
 

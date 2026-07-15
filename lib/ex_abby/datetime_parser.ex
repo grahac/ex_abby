@@ -2,7 +2,6 @@ defmodule ExAbby.DatetimeParser do
   @moduledoc """
   Handles parsing of various datetime formats including relative dates and formatted dates.
   """
-  require Logger
 
   @doc """
   Parses a datetime string into a DateTime struct.

@@ -4,7 +4,6 @@ defmodule ExAbby.Live.ExperimentShowLive do
   """
   alias ExAbby.Experiments
   use Phoenix.LiveView
-  use Phoenix.Component
 
   def mount(%{"id" => id}, _session, socket) do
     socket = load_experiment(socket, String.to_integer(id))
