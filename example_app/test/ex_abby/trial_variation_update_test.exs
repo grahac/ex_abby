@@ -53,7 +53,7 @@ defmodule ExampleApp.ExAbbyTrialVariationUpdateTest do
   test "upsert updates weights for existing variations" do
     experiment = setup_experiment("upsert_weight_update")
 
-    assert {:ok, ^experiment} =
+    assert {:ok, updated} =
              Experiments.upsert_experiment_and_update_weights(
                experiment.name,
                "updated description",
@@ -62,6 +62,13 @@ defmodule ExampleApp.ExAbbyTrialVariationUpdateTest do
 
     assert variation(experiment, "control").weight == 3.0
     assert variation(experiment, "treatment").weight == 2.0
+
+    # The returned struct reflects the persisted update, not the pre-update one.
+    assert updated.id == experiment.id
+    assert updated.description == "updated description"
+
+    assert Experiments.get_experiment_by_name(experiment.name).description ==
+             "updated description"
   end
 
   test "update_variation_weights updates existing variations" do

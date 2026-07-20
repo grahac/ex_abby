@@ -39,6 +39,14 @@ defmodule ExAbby.BotDetectorTest do
     end
   end
 
+  defmodule ThrowingDetector do
+    @moduledoc false
+
+    def detect(%Context{user_agent: user_agent}) do
+      throw({:detector_failed, user_agent})
+    end
+  end
+
   setup do
     original_config = Application.get_env(:ex_abby, :bot_detection, :missing)
 
@@ -164,6 +172,37 @@ defmodule ExAbby.BotDetectorTest do
     assert_receive {:detector_error, [:ex_abby, :bot_detector, :error], %{count: 1}, metadata}
 
     assert metadata == %{detector: RaisingDetector, kind: :error, error: RuntimeError}
+  end
+
+  test "reports thrown detector failures without exposing request data" do
+    handler_id = "bot-detector-throw-#{System.unique_integer([:positive])}"
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        [:ex_abby, :bot_detector, :error],
+        fn event, measurements, metadata, test_pid ->
+          send(test_pid, {:detector_error, event, measurements, metadata})
+        end,
+        self()
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    Application.put_env(:ex_abby, :bot_detection, detectors: [ThrowingDetector])
+
+    log =
+      capture_log(fn ->
+        assert BotDetector.detect("private-user-agent") == :human
+      end)
+
+    assert log =~ inspect(ThrowingDetector)
+    refute log =~ "private-user-agent"
+
+    assert_receive {:detector_error, [:ex_abby, :bot_detector, :error], %{count: 1}, metadata}
+
+    # A thrown non-struct value has no exception module, so :error stays nil.
+    assert metadata == %{detector: ThrowingDetector, kind: :throw, error: nil}
   end
 
   test "returns the documented default configuration" do
