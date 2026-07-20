@@ -8,6 +8,7 @@ defmodule ExAbby.BotDetector do
   """
 
   alias ExAbby.BotDetector.Context
+  require Logger
 
   @default_config [
     enabled: true,
@@ -72,12 +73,33 @@ defmodule ExAbby.BotDetector do
       _ -> :human
     end
   rescue
-    _exception -> :human
+    exception -> detector_failure(detector, :error, exception)
   catch
-    _kind, _value -> :human
+    kind, value -> detector_failure(detector, kind, value)
   end
 
   defp call_detector(_detector, _context), do: :human
+
+  defp detector_failure(detector, kind, value) do
+    Logger.warning(
+      "ExAbby bot detector #{inspect(detector)} failed with #{kind}; treating request as human"
+    )
+
+    :telemetry.execute(
+      [:ex_abby, :bot_detector, :error],
+      %{count: 1},
+      %{
+        detector: detector,
+        kind: kind,
+        error: error_module(value)
+      }
+    )
+
+    :human
+  end
+
+  defp error_module(%{__struct__: module}) when is_atom(module), do: module
+  defp error_module(_value), do: nil
 
   defp validate_status(:human), do: :human
 

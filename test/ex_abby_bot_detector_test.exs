@@ -3,6 +3,7 @@ defmodule ExAbby.BotDetectorTest do
 
   alias ExAbby.BotDetector
   alias ExAbby.BotDetector.Context
+  import ExUnit.CaptureLog
 
   defmodule FirstHumanDetector do
     @moduledoc false
@@ -27,6 +28,14 @@ defmodule ExAbby.BotDetectorTest do
 
     def detect(%Context{user_agent: user_agent}) do
       {:bot, "untrusted-#{user_agent}"}
+    end
+  end
+
+  defmodule RaisingDetector do
+    @moduledoc false
+
+    def detect(%Context{user_agent: user_agent}) do
+      raise "detector failed for #{user_agent}"
     end
   end
 
@@ -125,6 +134,36 @@ defmodule ExAbby.BotDetectorTest do
     Application.put_env(:ex_abby, :bot_detection, detectors: [InvalidNameDetector])
 
     assert BotDetector.detect("untrusted user agent") == :human
+  end
+
+  test "reports detector failures without exposing request data" do
+    handler_id = "bot-detector-error-#{System.unique_integer([:positive])}"
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        [:ex_abby, :bot_detector, :error],
+        fn event, measurements, metadata, test_pid ->
+          send(test_pid, {:detector_error, event, measurements, metadata})
+        end,
+        self()
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    Application.put_env(:ex_abby, :bot_detection, detectors: [RaisingDetector])
+
+    log =
+      capture_log(fn ->
+        assert BotDetector.detect("private-user-agent") == :human
+      end)
+
+    assert log =~ inspect(RaisingDetector)
+    refute log =~ "private-user-agent"
+
+    assert_receive {:detector_error, [:ex_abby, :bot_detector, :error], %{count: 1}, metadata}
+
+    assert metadata == %{detector: RaisingDetector, kind: :error, error: RuntimeError}
   end
 
   test "returns the documented default configuration" do

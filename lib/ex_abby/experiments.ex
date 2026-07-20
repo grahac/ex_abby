@@ -187,7 +187,7 @@ defmodule ExAbby.Experiments do
 
         if update_weights do
           Enum.each(variations, fn {var_name, weight} ->
-            if variation = get_variation_by_name(experiment.id, var_name) do
+            if variation = get_variation_by_name(experiment.name, var_name) do
               update_weight(variation, weight)
             end
           end)
@@ -833,7 +833,7 @@ defmodule ExAbby.Experiments do
 
     if experiment do
       for {var_name, new_weight} <- variation_weights do
-        variation = get_variation_by_name(experiment.id, var_name)
+        variation = get_variation_by_name(experiment.name, var_name)
 
         if variation do
           variation

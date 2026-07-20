@@ -49,4 +49,31 @@ defmodule ExampleApp.ExAbbyTrialVariationUpdateTest do
 
     assert nil == Experiments.update_trial_variation(-1, treatment.id)
   end
+
+  test "upsert updates weights for existing variations" do
+    experiment = setup_experiment("upsert_weight_update")
+
+    assert {:ok, ^experiment} =
+             Experiments.upsert_experiment_and_update_weights(
+               experiment.name,
+               "updated description",
+               [{"control", 3.0}, {"treatment", 2.0}]
+             )
+
+    assert variation(experiment, "control").weight == 3.0
+    assert variation(experiment, "treatment").weight == 2.0
+  end
+
+  test "update_variation_weights updates existing variations" do
+    experiment = setup_experiment("direct_weight_update")
+
+    assert :ok =
+             Experiments.update_variation_weights(experiment.name, [
+               {"control", 4.0},
+               {"treatment", 1.0}
+             ])
+
+    assert variation(experiment, "control").weight == 4.0
+    assert variation(experiment, "treatment").weight == 1.0
+  end
 end
