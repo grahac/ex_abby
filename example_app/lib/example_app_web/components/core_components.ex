@@ -17,7 +17,7 @@ defmodule ExampleAppWeb.CoreComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
-  import ExampleAppWeb.Gettext
+  use Gettext, backend: ExampleAppWeb.Gettext
 
   @doc """
   Renders a modal.

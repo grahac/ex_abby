@@ -17,7 +17,7 @@ defmodule ExAbby.LinkSessionToUserTest do
       # we'll test that the function clauses are defined by checking the module info
       {:module, ExAbby} = Code.ensure_compiled(ExAbby)
       functions = ExAbby.__info__(:functions)
-      
+
       # Check that link_session_to_user exists with both arities
       assert {:link_session_to_user, 2} in functions
       assert {:link_session_to_user, 3} in functions
@@ -29,7 +29,7 @@ defmodule ExAbby.LinkSessionToUserTest do
       # This should raise FunctionClauseError as it's not a Conn or Socket
       invalid_context = %{some: "map"}
       user = %{id: 333}
-      
+
       assert_raise FunctionClauseError, fn ->
         ExAbby.link_session_to_user(invalid_context, user)
       end
@@ -39,18 +39,18 @@ defmodule ExAbby.LinkSessionToUserTest do
       invalid_context = %{some: "map"}
       user = %{id: 444}
       experiments = ["exp1", "exp2"]
-      
+
       assert_raise FunctionClauseError, fn ->
-        ExAbby.link_session_to_user(invalid_context, user, experiments)
+        apply(ExAbby, :link_session_to_user, [invalid_context, user, experiments])
       end
     end
 
     test "invalid context with :all raises FunctionClauseError" do
       invalid_context = %{some: "map"}
       user = %{id: 555}
-      
+
       assert_raise FunctionClauseError, fn ->
-        ExAbby.link_session_to_user(invalid_context, user, :all)
+        apply(ExAbby, :link_session_to_user, [invalid_context, user, :all])
       end
     end
   end

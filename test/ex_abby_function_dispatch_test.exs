@@ -6,7 +6,7 @@ defmodule ExAbby.FunctionDispatchTest do
       # We'll test that the function doesn't raise a FunctionClauseError
       # when called with an integer. The actual DB call will fail, but
       # that's expected without a configured repo.
-      
+
       assert_raise RuntimeError, ~r/No Ecto repo configured/, fn ->
         ExAbby.get_variations(123, ["test_exp"])
       end

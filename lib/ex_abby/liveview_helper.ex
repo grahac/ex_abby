@@ -32,13 +32,24 @@ defmodule ExAbby.LiveViewHelper do
 
     socket = save_session_data(socket, session)
 
+    if bot?(socket) do
+      assign_bot_fallback(socket, existing_trials, experiment_names, bot_name(socket))
+    else
+      assign_human_variations(socket, existing_trials, experiment_names)
+    end
+  end
+
+  defp assign_human_variations(socket, existing_trials, experiment_names) do
     if socket.assigns.ex_abby_session_id do
       # Process only experiments that aren't already in trials
       new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
 
       new_variations =
         Enum.reduce(new_experiments, %{}, fn experiment_name, acc ->
-          case get_session_exp_variation_by_id(socket.assigns.ex_abby_session_id, experiment_name) do
+          case get_or_restore_session_exp_variation_by_id(
+                 socket.assigns.ex_abby_session_id,
+                 experiment_name
+               ) do
             %{name: name} -> Map.put(acc, experiment_name, name)
             {:error, :experiment_not_found} -> acc
           end
@@ -62,6 +73,9 @@ defmodule ExAbby.LiveViewHelper do
   """
   def set_session_exp_variation_lv(socket, experiment_name, variation_name) do
     cond do
+      bot?(socket) ->
+        {:error, :bot_excluded, socket}
+
       not Phoenix.LiveView.connected?(socket) ->
         {:error, :not_connected, socket}
 
@@ -88,15 +102,20 @@ defmodule ExAbby.LiveViewHelper do
 
   def save_session_data(%Phoenix.LiveView.Socket{} = socket, session) do
     session_id = Map.get(session, @session_key)
+    bot_status = Map.get(session, "ex_abby_bot", :human)
 
     socket
     |> assign(:ex_abby_session_id, session_id)
+    |> assign(:ex_abby_bot, bot_status)
     |> assign(:ex_abby_trials, %{})
   end
 
   def record_successes_for_session_lv(socket, experiment_names, opts \\ [])
       when is_list(experiment_names) do
     cond do
+      bot?(socket) ->
+        {:error, %{successful: [], failed: experiment_names}}
+
       not Phoenix.LiveView.connected?(socket) ->
         {:error, %{successful: [], failed: experiment_names}}
 
@@ -121,35 +140,36 @@ defmodule ExAbby.LiveViewHelper do
   # create a small function that re-uses the lower-level picking logic:
   # ------------------------------------------------------------------
 
-  defp get_session_exp_variation_by_id(session_id, experiment_name) do
-    # We can re-use the logic from PhoenixHelper by either:
-    # 1) Exposing a function that directly handles session_id
-    # 2) Or replicate it here. For demonstration, let's call a function that
-    #    we assume is in PhoenixHelper:
-
-    # We'll define 'PhoenixHelper.get_session_exp_variation_by_id/2'
-    # or you can replicate the code if you prefer.
-
-    PhoenixHelper.get_session_exp_variation_by_id(session_id, experiment_name)
-  end
+  defp get_or_restore_session_exp_variation_by_id(session_id, experiment_name),
+    do: PhoenixHelper.get_or_restore_session_exp_variation_by_id(session_id, experiment_name)
 
   @doc """
   Links session-based trials to a user for a LiveView socket.
   """
   def link_session_to_user_lv(socket, user, experiments) do
+    if bot?(socket) do
+      assign(socket, :ex_abby_link_results, {:error, :bot_excluded})
+    else
+      link_human_session_to_user(socket, user, experiments)
+    end
+  end
+
+  defp link_human_session_to_user(socket, user, experiments) do
     session_id = socket.assigns[:ex_abby_session_id]
-    
+
     if session_id do
-      user_id = case user do
-        %{id: id} when is_integer(id) -> id
-        id when is_integer(id) -> id
-        _ -> nil
-      end
-      
+      user_id =
+        case user do
+          %{id: id} when is_integer(id) -> id
+          id when is_integer(id) -> id
+          _ -> nil
+        end
+
       if user_id do
         case Experiments.link_session_to_user(session_id, user_id, experiments) do
           {:ok, results} ->
             assign(socket, :ex_abby_link_results, results)
+
           {:error, details} ->
             Logger.warning("Failed to link some session trials to user: #{inspect(details)}")
             assign(socket, :ex_abby_link_results, {:error, details})
@@ -161,6 +181,33 @@ defmodule ExAbby.LiveViewHelper do
     else
       Logger.warning("No session ID found when trying to link to user")
       socket
+    end
+  end
+
+  defp assign_bot_fallback(socket, existing_trials, experiment_names, bot_name) do
+    new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
+
+    trials =
+      Enum.reduce(new_experiments, %{}, fn experiment_name, trials ->
+        case PhoenixHelper.bot_fallback_variation_for_experiment(experiment_name) do
+          nil ->
+            trials
+
+          fallback_variation ->
+            PhoenixHelper.emit_excluded_assignment(experiment_name, bot_name)
+            Map.put(trials, experiment_name, fallback_variation)
+        end
+      end)
+
+    assign(socket, :ex_abby_trials, Map.merge(existing_trials, trials))
+  end
+
+  defp bot?(socket), do: not is_nil(bot_name(socket))
+
+  defp bot_name(socket) do
+    case socket.assigns[:ex_abby_bot] do
+      {:bot, bot_name} when is_atom(bot_name) -> bot_name
+      _ -> nil
     end
   end
 end

@@ -49,6 +49,8 @@ defmodule ExAbby.Migrations do
       add(:variation_id, references(:ex_abby_variations, on_delete: :delete_all), null: false)
       add(:user_id, :integer)
       add(:session_id, :string)
+      add(:excluded_at, :utc_datetime)
+      add(:exclusion_reason, :string)
 
       add(:success1_amount, :float, default: 0.0)
       add(:success1_count, :integer, default: 0)
@@ -125,6 +127,29 @@ defmodule ExAbby.Migrations do
       remove(:archived_at)
       remove(:winner_variation_id)
     end
+  end
+
+  @doc """
+  Upgrade from v2 to v3 by adding reversible trial-exclusion audit fields.
+
+  Usage in a host app migration:
+
+      def up, do: ExAbby.Migrations.v2_to_v3()
+      def down, do: ExAbby.Migrations.v3_to_v2()
+  """
+  def v2_to_v3 do
+    # `create_tables/0` is called by older host migrations at migration runtime.
+    # Fresh installs therefore already have these columns before this upgrade runs.
+    execute("ALTER TABLE ex_abby_trials ADD COLUMN IF NOT EXISTS excluded_at timestamp(0)")
+    execute("ALTER TABLE ex_abby_trials ADD COLUMN IF NOT EXISTS exclusion_reason varchar(255)")
+  end
+
+  @doc """
+  Downgrade from v3 to v2 by removing the trial-exclusion audit fields.
+  """
+  def v3_to_v2 do
+    execute("ALTER TABLE ex_abby_trials DROP COLUMN IF EXISTS excluded_at")
+    execute("ALTER TABLE ex_abby_trials DROP COLUMN IF EXISTS exclusion_reason")
   end
 
   @doc """

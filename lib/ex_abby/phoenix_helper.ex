@@ -13,6 +13,13 @@ defmodule ExAbby.PhoenixHelper do
   Returns {conn, variations_map} where variations_map is %{experiment_name => variation_name}.
   """
   def get_session_exp_variations(conn, experiment_names) when is_list(experiment_names) do
+    case bot_status(conn) do
+      {:bot, bot_name} -> assign_bot_fallback(conn, experiment_names, bot_name)
+      :human -> get_human_session_exp_variations(conn, experiment_names)
+    end
+  end
+
+  defp get_human_session_exp_variations(conn, experiment_names) do
     # Get existing trials map or initialize empty map
     existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
 
@@ -32,7 +39,7 @@ defmodule ExAbby.PhoenixHelper do
 
     new_variations =
       Enum.reduce(new_experiments, %{}, fn experiment_name, acc ->
-        case get_session_exp_variation_by_id(session_id, experiment_name) do
+        case get_or_restore_session_exp_variation_by_id(session_id, experiment_name) do
           nil -> acc
           {:error, _reason} -> acc
           variation -> Map.put(acc, experiment_name, variation.name)
@@ -73,21 +80,31 @@ defmodule ExAbby.PhoenixHelper do
   Returns {:ok, trial} if successful, {:error, reason} otherwise.
   """
   def set_session_exp_variation(conn, experiment_name, variation_name) do
-    session_id = Plug.Conn.get_session(conn, @session_key)
+    case bot_status(conn) do
+      {:bot, _bot_name} ->
+        {conn, {:error, :bot_excluded}}
 
-    if is_nil(session_id) do
-      {conn, {:error, :no_session_id}}
-    else
-      case Experiments.set_session_trial_variation(session_id, experiment_name, variation_name) do
-        {:ok, trial} ->
-          existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
-          updated_trials = Map.put(existing_trials, experiment_name, variation_name)
-          conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
-          {conn, {:ok, trial}}
+      :human ->
+        session_id = Plug.Conn.get_session(conn, @session_key)
 
-        error ->
-          {conn, error}
-      end
+        if is_nil(session_id) do
+          {conn, {:error, :no_session_id}}
+        else
+          case Experiments.set_session_trial_variation(
+                 session_id,
+                 experiment_name,
+                 variation_name
+               ) do
+            {:ok, trial} ->
+              existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
+              updated_trials = Map.put(existing_trials, experiment_name, variation_name)
+              conn = Plug.Conn.assign(conn, :ex_abby_trials, updated_trials)
+              {conn, {:ok, trial}}
+
+            error ->
+              {conn, error}
+          end
+        end
     end
   end
 
@@ -112,7 +129,8 @@ defmodule ExAbby.PhoenixHelper do
   Retrieves variations for multiple session-based experiments using session ID directly.
   Returns a map of %{experiment_name => variation_name}.
   """
-  def get_session_exp_variations_by_id(session_id, experiment_names) when is_list(experiment_names) do
+  def get_session_exp_variations_by_id(session_id, experiment_names)
+      when is_list(experiment_names) do
     Enum.reduce(experiment_names, %{}, fn experiment_name, acc ->
       case get_session_exp_variation_by_id(session_id, experiment_name) do
         nil -> acc
@@ -126,7 +144,22 @@ defmodule ExAbby.PhoenixHelper do
   Gets or creates a variation for a session ID.
   """
   def get_session_exp_variation_by_id(session_id, experiment_name) do
-    case Experiments.get_or_create_session_trial(experiment_name, session_id) do
+    get_session_exp_variation(
+      Experiments.get_or_create_session_trial(experiment_name, session_id),
+      experiment_name
+    )
+  end
+
+  @doc false
+  def get_or_restore_session_exp_variation_by_id(session_id, experiment_name) do
+    get_session_exp_variation(
+      Experiments.get_or_restore_session_trial(experiment_name, session_id),
+      experiment_name
+    )
+  end
+
+  defp get_session_exp_variation(result, experiment_name) do
+    case result do
       {:error, :experiment_not_found} = error ->
         Logger.error("Experiment not in database: #{experiment_name} #{inspect(error)}")
 
@@ -147,8 +180,14 @@ defmodule ExAbby.PhoenixHelper do
   """
   def record_successes_for_session(conn, experiment_names, opts \\ [])
       when is_list(experiment_names) do
-    session_id = Plug.Conn.get_session(conn, @session_key)
-    ExAbby.Experiments.record_session_successes(session_id, experiment_names, opts)
+    case bot_status(conn) do
+      {:bot, _bot_name} ->
+        {:error, %{successful: [], failed: experiment_names}}
+
+      :human ->
+        session_id = Plug.Conn.get_session(conn, @session_key)
+        ExAbby.Experiments.record_session_successes(session_id, experiment_names, opts)
+    end
   end
 
   @doc """
@@ -175,7 +214,6 @@ defmodule ExAbby.PhoenixHelper do
          trial when not is_nil(trial) <-
            Experiments.get_trial_by_session(experiment.id, session_id) do
       Experiments.record_success(trial, opts)
-      {:ok, trial}
     else
       nil -> {:error, :not_found}
     end
@@ -185,12 +223,18 @@ defmodule ExAbby.PhoenixHelper do
   Records a success for the session-based experiment.
   """
   def record_success_for_session(conn, experiment_name, opts \\ []) do
-    session_id = Plug.Conn.get_session(conn, @session_key)
+    case bot_status(conn) do
+      {:bot, _bot_name} ->
+        {:error, :bot_excluded}
 
-    if is_nil(session_id) do
-      {:error, :no_session_id}
-    else
-      record_success_for_session_id(session_id, experiment_name, opts)
+      :human ->
+        session_id = Plug.Conn.get_session(conn, @session_key)
+
+        if is_nil(session_id) do
+          {:error, :no_session_id}
+        else
+          record_success_for_session_id(session_id, experiment_name, opts)
+        end
     end
   end
 
@@ -202,20 +246,29 @@ defmodule ExAbby.PhoenixHelper do
   Links session-based trials to a user for a Phoenix controller.
   """
   def link_session_to_user_conn(conn, user, experiments) do
+    case bot_status(conn) do
+      {:bot, _bot_name} -> Plug.Conn.assign(conn, :ex_abby_link_results, {:error, :bot_excluded})
+      :human -> link_human_session_to_user(conn, user, experiments)
+    end
+  end
+
+  defp link_human_session_to_user(conn, user, experiments) do
     session_id = Plug.Conn.get_session(conn, @session_key)
-    
+
     if session_id do
-      user_id = case user do
-        %{id: id} when is_integer(id) -> id
-        id when is_integer(id) -> id
-        _ -> nil
-      end
-      
+      user_id =
+        case user do
+          %{id: id} when is_integer(id) -> id
+          id when is_integer(id) -> id
+          _ -> nil
+        end
+
       if user_id do
         case Experiments.link_session_to_user(session_id, user_id, experiments) do
           {:ok, results} ->
             conn = Plug.Conn.assign(conn, :ex_abby_link_results, results)
             conn
+
           {:error, details} ->
             Logger.warning("Failed to link some session trials to user: #{inspect(details)}")
             conn = Plug.Conn.assign(conn, :ex_abby_link_results, {:error, details})
@@ -229,5 +282,65 @@ defmodule ExAbby.PhoenixHelper do
       Logger.warning("No session ID found when trying to link to user")
       conn
     end
+  end
+
+  defp assign_bot_fallback(conn, experiment_names, bot_name) do
+    existing_trials = Map.get(conn.assigns, :ex_abby_trials, %{})
+
+    new_experiments = Enum.reject(experiment_names, &Map.has_key?(existing_trials, &1))
+
+    fallback_trials =
+      Enum.reduce(new_experiments, %{}, fn experiment_name, trials ->
+        case bot_fallback_variation_for_experiment(experiment_name) do
+          nil ->
+            trials
+
+          fallback_variation ->
+            emit_excluded_assignment(experiment_name, bot_name)
+            Map.put(trials, experiment_name, fallback_variation)
+        end
+      end)
+
+    trials = Map.merge(existing_trials, fallback_trials)
+    conn = Plug.Conn.assign(conn, :ex_abby_trials, trials)
+    {conn, trials}
+  end
+
+  defp bot_status(conn) do
+    status =
+      case Map.fetch(conn.assigns, :ex_abby_bot) do
+        {:ok, status} -> status
+        :error -> Plug.Conn.get_session(conn, "ex_abby_bot")
+      end
+
+    case status do
+      {:bot, bot_name} when is_atom(bot_name) -> {:bot, bot_name}
+      _ -> :human
+    end
+  end
+
+  defp bot_fallback_variation do
+    ExAbby.BotDetector.config() |> Keyword.fetch!(:fallback_variation)
+  end
+
+  @doc false
+  def bot_fallback_variation_for_experiment(experiment_name) do
+    with fallback_variation when is_binary(fallback_variation) <- bot_fallback_variation(),
+         %{archived_at: nil} <- Experiments.get_experiment_by_name(experiment_name),
+         %{name: ^fallback_variation} <-
+           Experiments.get_variation_by_name(experiment_name, fallback_variation) do
+      fallback_variation
+    else
+      _ -> nil
+    end
+  end
+
+  @doc false
+  def emit_excluded_assignment(experiment_name, bot_name) do
+    :telemetry.execute(
+      [:ex_abby, :assignment, :excluded],
+      %{},
+      %{experiment: experiment_name, reason: :bot, bot_name: bot_name}
+    )
   end
 end
