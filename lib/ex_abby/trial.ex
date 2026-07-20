@@ -12,6 +12,8 @@ defmodule ExAbby.Trial do
 
     field(:user_id, :integer)
     field(:session_id, :string)
+    field(:excluded_at, :utc_datetime)
+    field(:exclusion_reason, :string)
     field(:success1_amount, :float, default: 0.0)
     field(:success1_count, :integer, default: 0)
     field(:success1_date, :utc_datetime)

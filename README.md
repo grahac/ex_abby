@@ -48,8 +48,7 @@ Coming in the future
 9. [Usage in LiveView](#usage-in-liveview)
 10. [Linking Sessions to Users](#linking-sessions-to-users)
 11. [Archiving Experiments](#archiving-experiments)
-12. [Production Deployment](#production-deployment)
-13. [Troubleshooting](#troubleshooting)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -88,10 +87,22 @@ In your host app’s `config/config.exs` (or `dev.exs`, etc.), set:
 
 ```elixir
 config :ex_abby,
-  repo: MyApp.Repo
+  repo: MyApp.Repo,
+  bot_detection: [
+    enabled: true,
+    detectors: [ExAbby.BotDetector.UserAgent],
+    fallback_variation: "control"
+  ]
 ```
 
 Where `MyApp.Repo` is your **Ecto Repo** module.
+
+Bot detection is enabled by default. The built-in detector classifies common
+search, AI, social-preview, monitoring, SEO, and generic crawler user agents.
+It is intentionally user-agent based: applications can add request-aware
+detectors for Cloudflare or other signals, but custom detectors must return a
+stable atom such as `{:bot, :cloudflare_verified_bot}` and must never return a
+user agent, IP address, or other request-derived value.
 
 ---
 ## Migrations
@@ -164,6 +175,24 @@ mix ecto.migrate
 This adds two new columns to `ex_abby_experiments`:
 - `archived_at` - Timestamp when experiment was archived
 - `winner_variation_id` - Reference to the winning variation (optional)
+
+---
+
+## Upgrading to trial exclusion fields
+
+Bot-exclusion audit fields are added with the next ExAbby migration:
+
+```elixir
+defmodule MyApp.Repo.Migrations.ExAbbyBotExclusion do
+  use Ecto.Migration
+
+  def up, do: ExAbby.Migrations.v2_to_v3()
+  def down, do: ExAbby.Migrations.v3_to_v2()
+end
+```
+
+The migration adds nullable `excluded_at` and `exclusion_reason` fields to
+`ex_abby_trials`; it preserves rows for auditing and restoration.
 
 ---
 
@@ -257,7 +286,55 @@ plug ExAbby.SessionPlug
 ```
 
 
-This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests.
+This plug creates a unique `"ex_abby_session_id"` for tracking A/B test variations across requests. It also evaluates bot detection on every request and stores only compact `:human` or `{:bot, bot_name}` status in `conn.assigns[:ex_abby_bot]` and the session's `"ex_abby_bot"` key. It never persists a raw user agent or IP address.
+
+### Bot behavior and custom detectors
+
+For bot requests, the controller and LiveView assignment helpers return the
+configured fallback variation without creating or changing a trial. Each such
+assignment emits `[:ex_abby, :assignment, :excluded]` telemetry with the
+experiment, `:bot` reason, and static bot name only.
+
+To add a detector, implement `detect/1` against
+`ExAbby.BotDetector.Context`, which includes transient `user_agent` and an
+optional `conn`:
+
+```elixir
+defmodule MyApp.BotDetector do
+  def detect(%ExAbby.BotDetector.Context{conn: conn}) do
+    if conn.assigns[:verified_bot], do: {:bot, :verified_bot}, else: :human
+  end
+end
+
+config :ex_abby,
+  bot_detection: [detectors: [ExAbby.BotDetector.UserAgent, MyApp.BotDetector]]
+```
+
+The stored and emitted bot name must be a stable atom; invalid custom detector
+responses are treated as `:human` so request evidence cannot leak into the
+session or telemetry.
+
+### Excluding historical trials
+
+Use the batch APIs only from privileged server-side maintenance code. They are
+transactional and idempotent, retain the original variation, and can be safely
+reversed:
+
+```elixir
+{:ok, excluded_count} = ExAbby.exclude_session_trials(session_ids, reason: "bot")
+{:ok, restored_count} = ExAbby.restore_session_trials(session_ids)
+```
+
+Excluded trials are omitted from experiment summaries, conversion rates, and
+significance calculations, while the admin experiment view displays their
+total separately. An eligible human request restores only the trial for the
+experiment it revisits, preserving unrelated exclusions.
+
+`ExAbby.Experiments` persistence functions and public raw session-ID/user-ID
+overloads do not have request bot status and therefore bypass this eligibility
+check. Normal Phoenix and LiveView integrations should use the `Plug.Conn` and
+socket public APIs after `ExAbby.SessionPlug`; host code that uses low-level
+assignment must perform bot-first eligibility itself.
 ---
 
 
@@ -604,63 +681,6 @@ ExAbby.Experiments.list_experiments(status: :archived)
 ExAbby.Experiments.list_experiments(status: :all)
 ```
 
----
-
-## Production Deployment
-
-ExAbby experiments can be seeded automatically during your migration process.
-
-1. **Update Mix Release Configuration**
-
-In your `mix.exs`, ensure you have the releases configuration:
-```elixir
-def releases do
-  [
-    memoir: [
-      include_erts: true,
-      include_executables_for: [:unix],
-      applications: [runtime_tools: :permanent],
-      overlays: ["priv/repo/seeds"]
-    ]
-  ]
-end
-```
-
-
-2. **Add Release Module Function**
-
-In `lib/your_app/release.ex`:
-```elixir
-defmodule YourApp.Release do
-  # ... existing release module code ...
-
-  def seed_experiments do
-    load_app()
-    repo = Application.get_env(:ex_abby, :repo)
-    
-    {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
-      seed_path = Application.app_dir(@app, "priv/repo/seeds/experiments.exs")
-      Code.eval_file(seed_path)
-    end)
-  end
-end
-```
-
-3. **Update Migration Script**
-
-Your existing `rel/overlays/bin/migrate` script will now run both migrations and seeds:
-```bash
-#!/bin/sh
-
-./memoir eval "Memoir.Release.migrate"
-./memoir eval "Memoir.Release.seed_experiments"
-```
-
-Now your experiments will be automatically seeded whenever you run migrations using:
-```bash
-bin/migrate
-```
-This will create or update your experiments while preserving existing weights for any experiments that already exist.
 ---
 
 ## Troubleshooting

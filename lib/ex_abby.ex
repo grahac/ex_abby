@@ -177,7 +177,7 @@ defmodule ExAbby do
 
   @doc """
   Links session-based trials to a user. This allows tracking experiments across both session and user contexts.
-  
+
   ## Examples:
       # Link all session experiments (default):
       conn = ExAbby.link_session_to_user(conn, user)
@@ -190,18 +190,34 @@ defmodule ExAbby do
       
       # With user_id directly:
       conn = ExAbby.link_session_to_user(conn, user_id)
-  
+
   Returns updated conn/socket with the link operation results.
   """
   def link_session_to_user(context, user, experiments \\ :all)
-  
+
   def link_session_to_user(%Plug.Conn{} = conn, user, experiments) do
     ExAbby.PhoenixHelper.link_session_to_user_conn(conn, user, experiments)
   end
-  
+
   def link_session_to_user(%Phoenix.LiveView.Socket{} = socket, user, experiments) do
     ExAbby.LiveViewHelper.link_session_to_user_lv(socket, user, experiments)
   end
+
+  @doc """
+  Excludes every active trial belonging to the supplied session IDs.
+
+  Excluded trials remain available for audit and can be restored with
+  `restore_session_trials/1`. Returns `{:ok, count}` where `count` is the
+  number of rows changed.
+  """
+  defdelegate exclude_session_trials(session_ids, opts \\ []), to: ExAbby.Experiments
+
+  @doc """
+  Restores every excluded trial belonging to the supplied session IDs.
+
+  Returns `{:ok, count}` where `count` is the number of rows changed.
+  """
+  defdelegate restore_session_trials(session_ids), to: ExAbby.Experiments
 
   # Admin/setup functions
   defdelegate upsert_experiment_and_update_weights(

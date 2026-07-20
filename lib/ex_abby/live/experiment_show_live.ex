@@ -288,6 +288,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
               <th>Weight</th>
               <th>Variation</th>
               <th>Trials</th>
+              <th>Excluded</th>
               <th><%= @experiment.success1_label || "Success" %></th>
               <th><%= @experiment.success1_label || "Success" %> Unique</th>
               <th><%= @experiment.success1_label || "Success" %> Amount</th>
@@ -317,6 +318,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
                 </td>
                 <td><%= row.variation_name %></td>
                 <td><%= row.trials %></td>
+                <td><%= row.excluded_trials %></td>
                 <td><%= row.success1.count %></td>
                 <td><%= row.success1.unique_count %></td>
                 <td><%= Float.round(row.success1.amount, 2) %></td>

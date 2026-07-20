@@ -233,32 +233,14 @@ defmodule ExAbby.Experiments do
   Returns {:error, :experiment_archived} if the experiment is archived.
   """
   def get_or_create_session_trial(experiment_name, session_id) do
-    experiment = get_experiment_by_name(experiment_name)
+    get_session_trial(experiment_name, session_id, restore_excluded?: false)
+  end
 
-    case experiment do
-      nil ->
-        Logger.warning("Experiment not found #{experiment_name}")
-        {:error, :experiment_not_found}
-
-      %{archived_at: archived_at} when not is_nil(archived_at) ->
-        {:error, :experiment_archived}
-
-      experiment ->
-        case get_trial_by_session(experiment.id, session_id) do
-          nil ->
-            variation = pick_weighted_variation(experiment.id)
-
-            resolve_created_or_raced(
-              create_trial(experiment.id, variation.id, session_id, nil),
-              variation,
-              :ex_abby_trials_experiment_session_id_unique_index,
-              fn -> get_trial_by_session(experiment.id, session_id) end
-            )
-
-          trial ->
-            {get_variation(trial.variation_id), :existing}
-        end
-    end
+  @doc false
+  # Request-aware assignment calls this instead of issuing a no-op restore update
+  # for every active trial. Direct persistence APIs keep their historical behavior.
+  def get_or_restore_session_trial(experiment_name, session_id) do
+    get_session_trial(experiment_name, session_id, restore_excluded?: true)
   end
 
   @doc """
@@ -282,6 +264,97 @@ defmodule ExAbby.Experiments do
         preload: [:experiment]
       )
     )
+  end
+
+  @doc """
+  Marks active trials for the supplied session IDs as excluded.
+
+  The update is transactional and idempotent: duplicate IDs are ignored, and
+  already excluded rows are left unchanged. Returns `{:ok, count}`.
+  """
+  def exclude_session_trials(session_ids, opts \\ [])
+      when is_list(session_ids) and is_list(opts) do
+    reason = Keyword.get(opts, :reason, "bot")
+
+    update_session_trials(session_ids, fn session_ids ->
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      repo().update_all(
+        from(t in Trial,
+          where: t.session_id in ^session_ids and is_nil(t.excluded_at)
+        ),
+        set: [excluded_at: now, exclusion_reason: reason]
+      )
+    end)
+  end
+
+  @doc """
+  Clears exclusion audit fields for trials belonging to the supplied session IDs.
+
+  The update is transactional and idempotent: duplicate IDs are ignored, and
+  active rows are left unchanged. Returns `{:ok, count}`.
+  """
+  def restore_session_trials(session_ids) when is_list(session_ids) do
+    update_session_trials(session_ids, fn session_ids ->
+      repo().update_all(
+        from(t in Trial,
+          where: t.session_id in ^session_ids and not is_nil(t.excluded_at)
+        ),
+        set: [excluded_at: nil, exclusion_reason: nil]
+      )
+    end)
+  end
+
+  @doc false
+  # Request-aware assignment code restores one experiment/session pair at a time so a
+  # returning eligible human does not reactivate unrelated excluded experiments.
+  def restore_excluded_session_trial(experiment_id, session_id) do
+    {count, _} =
+      repo().update_all(
+        from(t in Trial,
+          where:
+            t.experiment_id == ^experiment_id and t.session_id == ^session_id and
+              not is_nil(t.excluded_at)
+        ),
+        set: [excluded_at: nil, exclusion_reason: nil]
+      )
+
+    count
+  end
+
+  defp get_session_trial(experiment_name, session_id, opts) do
+    experiment = get_experiment_by_name(experiment_name)
+    restore_excluded? = Keyword.fetch!(opts, :restore_excluded?)
+
+    case experiment do
+      nil ->
+        Logger.warning("Experiment not found #{experiment_name}")
+        {:error, :experiment_not_found}
+
+      %{archived_at: archived_at} when not is_nil(archived_at) ->
+        {:error, :experiment_archived}
+
+      experiment ->
+        case get_trial_by_session(experiment.id, session_id) do
+          nil ->
+            variation = pick_weighted_variation(experiment.id)
+
+            resolve_created_or_raced(
+              create_trial(experiment.id, variation.id, session_id, nil),
+              variation,
+              :ex_abby_trials_experiment_session_id_unique_index,
+              fn -> get_trial_by_session(experiment.id, session_id) end
+            )
+
+          %Trial{excluded_at: excluded_at} = trial
+          when restore_excluded? and not is_nil(excluded_at) ->
+            restore_excluded_session_trial(experiment.id, session_id)
+            {get_variation(trial.variation_id), :restored}
+
+          trial ->
+            {get_variation(trial.variation_id), :existing}
+        end
+    end
   end
 
   def get_or_create_user_trials(experiment_names, user_id) when is_list(experiment_names) do
@@ -331,7 +404,6 @@ defmodule ExAbby.Experiments do
     with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
          trial when not is_nil(trial) <- get_trial_by_user(experiment.id, user_id) do
       record_success(trial, opts)
-      {:ok, trial}
     else
       nil ->
         Logger.warning(
@@ -346,7 +418,6 @@ defmodule ExAbby.Experiments do
     with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
          trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
       record_success(trial, opts)
-      {:ok, trial}
     else
       nil ->
         Logger.warning(
@@ -366,7 +437,13 @@ defmodule ExAbby.Experiments do
     * `:amount` - Optional numeric value to track with the success (default: 0.0)
     * `:success_type` - Type of success to record, either `:success1` or `:success2` (default: `:success1`)
   """
-  def record_success(trial, opts \\ []) when is_list(opts) do
+  def record_success(trial, opts \\ [])
+
+  def record_success(%Trial{excluded_at: excluded_at}, _opts) when not is_nil(excluded_at) do
+    {:error, :trial_excluded}
+  end
+
+  def record_success(%Trial{} = trial, opts) when is_list(opts) do
     amount =
       case Keyword.get(opts, :amount, 0.0) do
         amount when is_binary(amount) ->
@@ -386,32 +463,8 @@ defmodule ExAbby.Experiments do
             "success_type must be one of #{inspect(@success_types)}, got: #{inspect(success_type)}"
     end
 
-    {count_field, date_field, amount_field} = get_success_fields(success_type)
-    current_count = Map.get(trial, count_field, 0)
-    current_amount = Map.get(trial, amount_field, 0.0)
-
-    changes =
-      if current_count == 0 do
-        %{
-          count_field => current_count + 1,
-          date_field => DateTime.utc_now() |> DateTime.truncate(:second),
-          amount_field => current_amount + amount
-        }
-      else
-        %{
-          count_field => current_count + 1,
-          amount_field => current_amount + amount
-        }
-      end
-
-    {:ok, _trial} =
-      trial
-      |> Changeset.change(changes)
-      |> repo().update()
+    record_active_success(trial.id, success_type, amount)
   end
-
-  defp get_success_fields(:success1), do: {:success1_count, :success1_date, :success1_amount}
-  defp get_success_fields(:success2), do: {:success2_count, :success2_date, :success2_amount}
 
   @doc """
   Links a session-based trial to a user by updating the trial's user_id.
@@ -448,31 +501,64 @@ defmodule ExAbby.Experiments do
   end
 
   defp link_single_session_to_user(session_id, user_id, experiment_name) do
-    with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
-         trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
-      # Use Trial.changeset (not a bare Changeset.change) so the user-uniqueness index
-      # surfaces as {:error, changeset} instead of raising Ecto.ConstraintError.
-      case trial |> Trial.changeset(%{user_id: user_id}) |> repo().update() do
-        {:ok, updated} ->
-          {:ok, updated}
-
-        {:error, changeset} ->
-          # The user already has a trial for this experiment, so the session trial
-          # cannot also claim that user_id. Linking is then a no-op: return the
-          # user's existing trial rather than crashing.
-          if unique_violation?(changeset, :ex_abby_trials_experiment_user_id_unique_index) do
-            {:ok, get_trial_by_user(experiment.id, user_id)}
-          else
-            {:error, changeset}
-          end
-      end
-    else
+    case get_experiment_by_name(experiment_name) do
       nil ->
         Logger.warning(
           "Failed to link session to user: No trial found for session #{session_id} in experiment '#{experiment_name}'"
         )
 
         {:error, :no_trial_found}
+
+      experiment ->
+        case repo().transaction(fn ->
+               link_locked_session_trial(experiment, session_id, user_id)
+             end) do
+          {:ok, result} ->
+            result
+
+          {:error, :user_trial_exists} ->
+            {:ok, get_trial_by_user(experiment.id, user_id)}
+
+          {:error, {:update_failed, changeset}} ->
+            {:error, changeset}
+        end
+    end
+  end
+
+  defp link_locked_session_trial(experiment, session_id, user_id) do
+    trial =
+      repo().one(
+        from(t in Trial,
+          where: t.experiment_id == ^experiment.id and t.session_id == ^session_id,
+          lock: "FOR UPDATE"
+        )
+      )
+
+    case trial do
+      nil ->
+        {:error, :no_trial_found}
+
+      %Trial{excluded_at: excluded_at} when not is_nil(excluded_at) ->
+        {:error, :trial_excluded}
+
+      %Trial{} = trial ->
+        # Use Trial.changeset (not a bare Changeset.change) so the user-uniqueness index
+        # surfaces as {:error, changeset} instead of raising Ecto.ConstraintError.
+        case trial |> Trial.changeset(%{user_id: user_id}) |> repo().update() do
+          {:ok, updated} ->
+            {:ok, updated}
+
+          {:error, changeset} ->
+            # The user already has a trial for this experiment, so the session trial
+            # cannot also claim that user_id. Roll back the savepoint before the
+            # outer caller reads that existing trial; PostgreSQL marks the current
+            # transaction aborted after a unique violation.
+            if unique_violation?(changeset, :ex_abby_trials_experiment_user_id_unique_index) do
+              repo().rollback(:user_trial_exists)
+            else
+              repo().rollback({:update_failed, changeset})
+            end
+        end
     end
   end
 
@@ -550,20 +636,38 @@ defmodule ExAbby.Experiments do
           repo().one(
             from(t in query,
               select: %{
-                trial_count: count(t.id),
-                success1_sum: coalesce(sum(t.success1_count), 0),
-                success1_amount: coalesce(sum(t.success1_amount), 0.0),
+                trial_count: filter(count(t.id), is_nil(t.excluded_at)),
+                excluded_trial_count: filter(count(t.id), not is_nil(t.excluded_at)),
+                success1_sum: coalesce(filter(sum(t.success1_count), is_nil(t.excluded_at)), 0),
+                success1_amount:
+                  coalesce(filter(sum(t.success1_amount), is_nil(t.excluded_at)), 0.0),
                 success1_unique:
-                  count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success1_count, t.id)),
-                success2_sum: coalesce(sum(t.success2_count), 0),
-                success2_amount: coalesce(sum(t.success2_amount), 0.0),
+                  count(
+                    fragment(
+                      "DISTINCT CASE WHEN ? IS NULL AND ? > 0 THEN ? END",
+                      t.excluded_at,
+                      t.success1_count,
+                      t.id
+                    )
+                  ),
+                success2_sum: coalesce(filter(sum(t.success2_count), is_nil(t.excluded_at)), 0),
+                success2_amount:
+                  coalesce(filter(sum(t.success2_amount), is_nil(t.excluded_at)), 0.0),
                 success2_unique:
-                  count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success2_count, t.id))
+                  count(
+                    fragment(
+                      "DISTINCT CASE WHEN ? IS NULL AND ? > 0 THEN ? END",
+                      t.excluded_at,
+                      t.success2_count,
+                      t.id
+                    )
+                  )
               }
             )
           ) ||
             %{
               trial_count: 0,
+              excluded_trial_count: 0,
               success1_sum: 0,
               success1_amount: 0.0,
               success1_unique: 0,
@@ -576,6 +680,7 @@ defmodule ExAbby.Experiments do
           variation_id: v.id,
           variation_name: v.name,
           trials: stats.trial_count,
+          excluded_trials: stats.excluded_trial_count,
           success1: %{
             count: stats.success1_sum,
             unique_count: stats.success1_unique,
@@ -627,7 +732,6 @@ defmodule ExAbby.Experiments do
         with experiment when not is_nil(experiment) <- get_experiment_by_name(experiment_name),
              trial when not is_nil(trial) <- get_trial_by_session(experiment.id, session_id) do
           record_success(trial, opts)
-          {:ok, trial}
         else
           nil -> {:error, :not_found}
         end
@@ -682,8 +786,8 @@ defmodule ExAbby.Experiments do
     experiment = get_experiment_by_name(experiment_name)
 
     if experiment do
-      var_a = get_variation_by_name(experiment.id, var_name_a)
-      var_b = get_variation_by_name(experiment.id, var_name_b)
+      var_a = get_variation_by_name(experiment.name, var_name_a)
+      var_b = get_variation_by_name(experiment.name, var_name_b)
 
       if var_a && var_b do
         {trials_a, success_a} = get_trial_stats(var_a.id)
@@ -851,13 +955,43 @@ defmodule ExAbby.Experiments do
   Updates the variation for a specific trial.
   """
   def update_trial_variation(trial_id, variation_id) do
-    trial = repo().get(Trial, trial_id)
+    case repo().update_all(
+           from(t in Trial, where: t.id == ^trial_id and is_nil(t.excluded_at)),
+           set: [variation_id: variation_id]
+         ) do
+      {1, _} ->
+        {:ok, repo().get!(Trial, trial_id)}
 
-    if trial do
-      trial
-      |> Ecto.Changeset.change(%{variation_id: variation_id})
-      |> repo().update()
+      {0, _} ->
+        update_trial_variation_after_missed_update(trial_id, variation_id)
     end
+  end
+
+  # An exclusion can win the guarded UPDATE and then be restored before the
+  # follow-up read. Lock the row for one final, bounded attempt instead of
+  # recursively retrying while another process changes its exclusion status.
+  defp update_trial_variation_after_missed_update(trial_id, variation_id) do
+    {:ok, result} =
+      repo().transaction(fn ->
+        case repo().one(from(t in Trial, where: t.id == ^trial_id, lock: "FOR UPDATE")) do
+          %Trial{excluded_at: excluded_at} when not is_nil(excluded_at) ->
+            {:error, :trial_excluded}
+
+          %Trial{} ->
+            case repo().update_all(
+                   from(t in Trial, where: t.id == ^trial_id and is_nil(t.excluded_at)),
+                   set: [variation_id: variation_id]
+                 ) do
+              {1, _} -> {:ok, repo().get!(Trial, trial_id)}
+              {0, _} -> {:error, :trial_excluded}
+            end
+
+          nil ->
+            nil
+        end
+      end)
+
+    result
   end
 
   def get_trial_by_user(experiment_id, user_id) do
@@ -871,6 +1005,58 @@ defmodule ExAbby.Experiments do
   # ------------------------------------------------------------------
   # Private Functions
   # ------------------------------------------------------------------
+
+  defp update_session_trials(session_ids, update_fun) do
+    session_ids = session_ids |> Enum.filter(&is_binary/1) |> Enum.uniq()
+
+    case session_ids do
+      [] ->
+        {:ok, 0}
+
+      session_ids ->
+        repo().transaction(fn ->
+          {count, _} = update_fun.(session_ids)
+          count
+        end)
+    end
+  end
+
+  defp record_active_success(trial_id, :success1, amount) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    update_active_success(
+      trial_id,
+      from(t in Trial,
+        where: t.id == ^trial_id and is_nil(t.excluded_at),
+        update: [
+          inc: [success1_count: 1, success1_amount: ^amount],
+          set: [success1_date: fragment("COALESCE(?, ?)", t.success1_date, ^now)]
+        ]
+      )
+    )
+  end
+
+  defp record_active_success(trial_id, :success2, amount) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    update_active_success(
+      trial_id,
+      from(t in Trial,
+        where: t.id == ^trial_id and is_nil(t.excluded_at),
+        update: [
+          inc: [success2_count: 1, success2_amount: ^amount],
+          set: [success2_date: fragment("COALESCE(?, ?)", t.success2_date, ^now)]
+        ]
+      )
+    )
+  end
+
+  defp update_active_success(trial_id, query) do
+    case repo().update_all(query, []) do
+      {1, _} -> {:ok, repo().get!(Trial, trial_id)}
+      {0, _} -> {:error, :trial_excluded}
+    end
+  end
 
   defp create_new_experiment_with_variations(name, description, variations, opts) do
     # Build base attributes
@@ -995,8 +1181,10 @@ defmodule ExAbby.Experiments do
   defp get_trial_stats(variation_id) do
     repo().one(
       from(t in Trial,
-        where: t.variation_id == ^variation_id,
-        select: {count(t.id), sum(t.success_count)}
+        where: t.variation_id == ^variation_id and is_nil(t.excluded_at),
+        select:
+          {count(t.id),
+           count(fragment("DISTINCT CASE WHEN ? > 0 THEN ? END", t.success1_count, t.id))}
       )
     ) || {0, 0}
   end
