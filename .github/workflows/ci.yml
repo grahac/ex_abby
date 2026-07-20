@@ -25,7 +25,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: erlef/setup-beam@v1
         with:
@@ -33,7 +33,7 @@ jobs:
           otp-version: "28"
 
       - name: Cache deps and build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -45,6 +45,9 @@ jobs:
 
       - name: Install dependencies
         run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
 
       - name: Compile
         run: mix compile --warnings-as-errors
