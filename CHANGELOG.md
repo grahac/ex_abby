@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Default-on bot detection for request-aware controller and LiveView assignments, with configurable detector chains and a control fallback that does not create trials.
+- Reversible trial exclusion and restoration APIs, excluded-trial reporting, and bot-assignment telemetry.
+- Warning and `[:ex_abby, :bot_detector, :error]` telemetry when a configured detector fails; request data is not included in either signal.
+
+### Fixed
+- Existing variation weights are now updated correctly by both experiment upserts and `update_variation_weights/2`.
+
 ## [0.3.0] - 2026-06-28
 
 ### Added

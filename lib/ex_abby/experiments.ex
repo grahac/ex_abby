@@ -181,26 +181,27 @@ defmodule ExAbby.Experiments do
             base_attrs
           end
 
-        experiment
-        |> Experiment.changeset(attrs)
-        |> repo().update()
+        with {:ok, experiment} <-
+               experiment
+               |> Experiment.changeset(attrs)
+               |> repo().update() do
+          if update_weights do
+            Enum.each(variations, fn {var_name, weight} ->
+              if variation = get_variation_by_name(experiment.name, var_name) do
+                update_weight(variation, weight)
+              end
+            end)
+          else
+            # Just create any new variations without updating existing weights
+            Enum.each(variations, fn {var_name, weight} ->
+              unless get_variation_by_name(experiment.name, var_name) do
+                create_variation(experiment, var_name, weight)
+              end
+            end)
+          end
 
-        if update_weights do
-          Enum.each(variations, fn {var_name, weight} ->
-            if variation = get_variation_by_name(experiment.id, var_name) do
-              update_weight(variation, weight)
-            end
-          end)
-        else
-          # Just create any new variations without updating existing weights
-          Enum.each(variations, fn {var_name, weight} ->
-            unless get_variation_by_name(experiment.name, var_name) do
-              create_variation(experiment, var_name, weight)
-            end
-          end)
+          {:ok, experiment}
         end
-
-        {:ok, experiment}
     end
   end
 
@@ -833,7 +834,7 @@ defmodule ExAbby.Experiments do
 
     if experiment do
       for {var_name, new_weight} <- variation_weights do
-        variation = get_variation_by_name(experiment.id, var_name)
+        variation = get_variation_by_name(experiment.name, var_name)
 
         if variation do
           variation
