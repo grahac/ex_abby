@@ -21,7 +21,16 @@ defmodule ExAbby.Experiment do
 
   def changeset(experiment, attrs) do
     experiment
-    |> cast(attrs, [:name, :description, :success1_label, :success2_label, :start_time, :end_time, :archived_at, :winner_variation_id])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :success1_label,
+      :success2_label,
+      :start_time,
+      :end_time,
+      :archived_at,
+      :winner_variation_id
+    ])
     |> validate_required([:name])
     |> unique_constraint(:name)
   end

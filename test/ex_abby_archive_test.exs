@@ -146,10 +146,11 @@ defmodule ExAbby.ArchiveTest do
       experiment = %ExAbby.Experiment{}
       now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-      changeset = ExAbby.Experiment.changeset(experiment, %{
-        name: "test_exp",
-        archived_at: now
-      })
+      changeset =
+        ExAbby.Experiment.changeset(experiment, %{
+          name: "test_exp",
+          archived_at: now
+        })
 
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :archived_at) == now
@@ -158,10 +159,11 @@ defmodule ExAbby.ArchiveTest do
     test "changeset casts winner_variation_id" do
       experiment = %ExAbby.Experiment{}
 
-      changeset = ExAbby.Experiment.changeset(experiment, %{
-        name: "test_exp",
-        winner_variation_id: 123
-      })
+      changeset =
+        ExAbby.Experiment.changeset(experiment, %{
+          name: "test_exp",
+          winner_variation_id: 123
+        })
 
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :winner_variation_id) == 123
@@ -170,9 +172,10 @@ defmodule ExAbby.ArchiveTest do
     test "changeset allows nil archived_at" do
       experiment = %ExAbby.Experiment{name: "test", archived_at: DateTime.utc_now()}
 
-      changeset = ExAbby.Experiment.changeset(experiment, %{
-        archived_at: nil
-      })
+      changeset =
+        ExAbby.Experiment.changeset(experiment, %{
+          archived_at: nil
+        })
 
       assert changeset.valid?
     end
@@ -180,9 +183,10 @@ defmodule ExAbby.ArchiveTest do
     test "changeset allows nil winner_variation_id" do
       experiment = %ExAbby.Experiment{name: "test", winner_variation_id: 123}
 
-      changeset = ExAbby.Experiment.changeset(experiment, %{
-        winner_variation_id: nil
-      })
+      changeset =
+        ExAbby.Experiment.changeset(experiment, %{
+          winner_variation_id: nil
+        })
 
       assert changeset.valid?
     end

@@ -21,6 +21,7 @@ defmodule ExAbby.FunctionDispatchTest do
 
     test "get_variations/2 still accepts user struct" do
       user = %{id: 789}
+
       assert_raise RuntimeError, ~r/No Ecto repo configured/, fn ->
         ExAbby.get_variations(user, ["test_exp"])
       end
@@ -28,6 +29,7 @@ defmodule ExAbby.FunctionDispatchTest do
 
     test "get_variation/2 still accepts user struct" do
       user = %{id: 101}
+
       assert_raise RuntimeError, ~r/No Ecto repo configured/, fn ->
         ExAbby.get_variation(user, "test_exp")
       end
