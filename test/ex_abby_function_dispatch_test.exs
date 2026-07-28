@@ -52,13 +52,13 @@ defmodule ExAbby.FunctionDispatchTest do
     test "get_variations/2 raises FunctionClauseError for truly invalid input" do
       # Test with an atom or other non-supported type
       assert_raise FunctionClauseError, fn ->
-        ExAbby.get_variations(:atom_input, ["test_exp"])
+        apply(ExAbby, :get_variations, [:atom_input, ["test_exp"]])
       end
     end
 
     test "get_variation/2 raises FunctionClauseError for truly invalid input" do
       assert_raise FunctionClauseError, fn ->
-        ExAbby.get_variation(:atom_input, "test_exp")
+        apply(ExAbby, :get_variation, [:atom_input, "test_exp"])
       end
     end
   end

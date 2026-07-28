@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-28
+
 ### Added
 - Default-on bot detection for request-aware controller and LiveView assignments, with configurable detector chains and a control fallback that does not create trials.
 - Reversible trial exclusion and restoration APIs, excluded-trial reporting, and bot-assignment telemetry.
@@ -54,5 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed formatting of trial count display
 - Improved handling when experiment does not exist
 
-[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/grahac/ex_abby/compare/v0.3.0...v0.4.0
 [0.2.2]: https://github.com/grahac/ex_abby/compare/3e00820...v0.2.2

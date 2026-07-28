@@ -31,7 +31,7 @@ defmodule ExAbby.LinkSessionToUserTest do
       user = %{id: 333}
 
       assert_raise FunctionClauseError, fn ->
-        ExAbby.link_session_to_user(invalid_context, user)
+        apply(ExAbby, :link_session_to_user, [invalid_context, user])
       end
     end
 

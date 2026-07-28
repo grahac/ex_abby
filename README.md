@@ -60,7 +60,7 @@ Coming in the future
    ```elixir
    defp deps do
      [
-       {:ex_abby, "~> 0.2.0"}
+       {:ex_abby, "~> 0.4.0"}
      ]
    end
    ```
@@ -69,7 +69,7 @@ Coming in the future
    ```elixir
    defp deps do
      [
-       {:ex_abby, github: "grahac/ex_abby", tag: "0.2.0"}
+       {:ex_abby, github: "grahac/ex_abby", tag: "v0.4.0"}
      ]
    end
    ```
