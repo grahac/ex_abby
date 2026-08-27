@@ -2,7 +2,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
   @moduledoc """
   Shows a single experiment's variations, plus editing of weights.
   """
-  alias ExAbby.Experiments
+  alias ExAbby.{Experiments, Statistics}
   use Phoenix.LiveView
 
   def mount(%{"id" => id}, _session, socket) do
@@ -227,6 +227,41 @@ defmodule ExAbby.Live.ExperimentShowLive do
       background-color: #f3f4f6;
       cursor: not-allowed;
     }
+
+    .p-value-significant {
+      color: #047857;
+      font-weight: bold;
+    }
+
+    .p-value-unavailable {
+      color: #64748b;
+      font-size: 0.875rem;
+    }
+
+    .p-value-detail {
+      display: block;
+      margin-top: 4px;
+      color: #64748b;
+      font-size: 0.75rem;
+      font-weight: normal;
+      white-space: nowrap;
+    }
+
+    .significance-note {
+      margin-top: 12px;
+      color: #475569;
+      font-size: 0.875rem;
+    }
+
+    .significance-warning {
+      margin-top: 12px;
+      padding: 12px;
+      background-color: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 4px;
+      color: #92400e;
+      font-size: 0.875rem;
+    }
     </style>
 
     <div class="container">
@@ -293,11 +328,13 @@ defmodule ExAbby.Live.ExperimentShowLive do
               <th><%= @experiment.success1_label || "Success" %> Unique</th>
               <th><%= @experiment.success1_label || "Success" %> Amount</th>
               <th><%= @experiment.success1_label || "Success" %> Rate</th>
+              <th>Anytime P vs <%= @control_variation_name %></th>
               <%= if show_success2?(@experiment, @summary) do %>
                 <th><%= @experiment.success2_label %></th>
                 <th><%= @experiment.success2_label %> Unique</th>
                 <th><%= @experiment.success2_label %> Amount</th>
                 <th><%= @experiment.success2_label %> Rate</th>
+                <th>Anytime P vs <%= @control_variation_name %></th>
               <% end %>
             </tr>
           </thead>
@@ -323,11 +360,27 @@ defmodule ExAbby.Live.ExperimentShowLive do
                 <td><%= row.success1.unique_count %></td>
                 <td><%= Float.round(row.success1.amount, 2) %></td>
                 <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+                <td class={significance_class(@success1_significance, row.variation_id)}>
+                  <span><%= significance_label(@success1_significance, row.variation_id) %></span>
+                  <%= case significance_detail(@success1_significance, row.variation_id) do %>
+                    <% nil -> %>
+                    <% detail -> %>
+                      <small class="p-value-detail"><%= detail %></small>
+                  <% end %>
+                </td>
                 <%= if show_success2?(@experiment, @summary) do %>
                   <td><%= row.success2.count %></td>
                   <td><%= row.success2.unique_count %></td>
                   <td><%= Float.round(row.success2.amount, 2) %></td>
                   <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
+                  <td class={significance_class(@success2_significance, row.variation_id)}>
+                    <span><%= significance_label(@success2_significance, row.variation_id) %></span>
+                    <%= case significance_detail(@success2_significance, row.variation_id) do %>
+                      <% nil -> %>
+                      <% detail -> %>
+                        <small class="p-value-detail"><%= detail %></small>
+                    <% end %>
+                  </td>
                 <% end %>
               </tr>
             <% end %>
@@ -338,6 +391,26 @@ defmodule ExAbby.Live.ExperimentShowLive do
           <button type="submit" class="save-button">Save Weights</button>
         <% end %>
       </form>
+
+      <%= case @success1_significance do %>
+        <% {:ok, _significance} -> %>
+          <p class="significance-note">
+            Anytime-valid p-values compare each treatment with
+            <strong><%= @control_variation_name %></strong> using unique conversions in the
+            selected date range. They remain valid during continuous monitoring when the start
+            date and metric are fixed independently of the results. P-values are Holm-adjusted
+            across every configured treatment arm, including any with no data yet; values below
+            0.05 are highlighted. Lift ranges are pairwise 95% anytime-valid confidence
+            intervals and are <em>not</em> Holm-adjusted, so a treatment can show an interval
+            excluding zero while its adjusted p-value is above 0.05. "Not enough data" means
+            either arm has no eligible trials.
+          </p>
+        <% {:error, :control_not_found} -> %>
+          <p class="significance-warning">
+            Significance is unavailable because this experiment has no variation named
+            <strong><%= @control_variation_name %></strong>.
+          </p>
+      <% end %>
 
       <%= if @updated? do %>
         <div class="success-message">
@@ -431,6 +504,17 @@ defmodule ExAbby.Live.ExperimentShowLive do
     if experiment do
       summary = Experiments.experiment_summary(experiment.name)
 
+      control_variation_name =
+        Application.get_env(:ex_abby, :control_variation_name, "control")
+
+      success1_significance =
+        Statistics.compare_to_control(summary, :success1, control_name: control_variation_name)
+
+      success2_significance =
+        if show_success2?(experiment, summary) do
+          Statistics.compare_to_control(summary, :success2, control_name: control_variation_name)
+        end
+
       winner_variation =
         if experiment.winner_variation_id do
           Experiments.get_variation(experiment.winner_variation_id)
@@ -444,6 +528,9 @@ defmodule ExAbby.Live.ExperimentShowLive do
       |> assign(:updated?, false)
       |> assign(:weights_form, build_weights_form(experiment.variations))
       |> assign(:winner_variation, winner_variation)
+      |> assign(:control_variation_name, control_variation_name)
+      |> assign(:success1_significance, success1_significance)
+      |> assign(:success2_significance, success2_significance)
     else
       socket
     end
@@ -457,6 +544,71 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
   defp build_weights_form(variations) do
     for v <- variations, do: {v.id, v.name, v.weight}
+  end
+
+  defp significance_label({:error, :control_not_found}, _variation_id), do: "—"
+
+  defp significance_label(
+         {:ok, %{control_variation_id: control_variation_id}},
+         control_variation_id
+       ),
+       do: "Control"
+
+  defp significance_label({:ok, %{comparisons: comparisons}}, variation_id) do
+    case Map.fetch!(comparisons, variation_id) do
+      %{status: :insufficient_data} -> "Not enough data"
+      %{p_value: p_value} when p_value < 0.001 -> "< 0.001"
+      %{p_value: p_value} -> :erlang.float_to_binary(p_value, decimals: 3)
+    end
+  end
+
+  defp significance_class({:error, :control_not_found}, _variation_id),
+    do: "p-value-unavailable"
+
+  defp significance_class(
+         {:ok, %{control_variation_id: control_variation_id}},
+         control_variation_id
+       ),
+       do: nil
+
+  defp significance_class({:ok, %{comparisons: comparisons}}, variation_id) do
+    case Map.fetch!(comparisons, variation_id) do
+      %{status: :insufficient_data} -> "p-value-unavailable"
+      %{significant?: true} -> "p-value-significant"
+      %{significant?: false} -> nil
+    end
+  end
+
+  defp significance_detail({:error, :control_not_found}, _variation_id), do: nil
+
+  defp significance_detail(
+         {:ok, %{control_variation_id: control_variation_id}},
+         control_variation_id
+       ),
+       do: nil
+
+  defp significance_detail({:ok, %{comparisons: comparisons}}, variation_id) do
+    case Map.fetch!(comparisons, variation_id) do
+      %{status: :insufficient_data} ->
+        nil
+
+      %{confidence_interval: interval, lift: lift} ->
+        confidence = round(interval.confidence_level * 100)
+
+        "Lift #{percentage_points(lift)} pp; #{confidence}% anytime CI (unadjusted) " <>
+          "#{percentage_points(interval.lower)} to #{percentage_points(interval.upper)} pp"
+    end
+  end
+
+  defp percentage_points(proportion) do
+    value = Float.round(proportion * 100, 1)
+    formatted = :erlang.float_to_binary(value, decimals: 1)
+
+    cond do
+      value > 0.0 -> "+" <> formatted
+      value == 0.0 -> "0.0"
+      true -> formatted
+    end
   end
 
   defp validate_datetime(nil, _field), do: {:ok, nil}

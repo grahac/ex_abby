@@ -23,12 +23,12 @@ It supports:
 - Admin LiveViews with experiment filtering (Active/Archived/All)
 - Upserting experiments/variations with optional weight updates
 - Reviewing results over different time periods
+- Control-relative p-values for experiments with multiple treatments
 - Ability to toggle variations by user or session for testing
 
 Coming in the future
 - armed bandits
 - optimizations / caching
-- statistical significance
 - better UX of admin screens
 - So much cleanup
 - Likely changes to the API.
@@ -88,6 +88,7 @@ In your host app’s `config/config.exs` (or `dev.exs`, etc.), set:
 ```elixir
 config :ex_abby,
   repo: MyApp.Repo,
+  control_variation_name: "control",
   bot_detection: [
     enabled: true,
     detectors: [ExAbby.BotDetector.UserAgent],
@@ -96,6 +97,10 @@ config :ex_abby,
 ```
 
 Where `MyApp.Repo` is your **Ecto Repo** module.
+
+`control_variation_name` identifies the variation used as the baseline for
+significance comparisons in the admin results view. It defaults to `"control"`
+when omitted.
 
 Bot detection is enabled by default. The built-in detector classifies common
 search, AI, social-preview, monitoring, SEO, and generic crawler user agents.
@@ -360,6 +365,42 @@ end
    - List of all experiments
    - Experiment details and descriptions
    - Quick links to view individual experiments
+
+### Statistical significance
+
+The experiment results view compares every treatment with the variation named
+by `control_variation_name`. It calculates two-sided, anytime-valid p-values by
+inverting beta-binomial mixture confidence sequences for the binary conversion
+rate in each arm. The calculation uses unique converters and trials in the
+selected date range; excluded trials do not contribute to either count.
+
+When an experiment has multiple treatments, ExAbby applies Holm's adjustment to
+reduce false positives from making several comparisons. Adjusted values below
+0.05 are highlighted. The correction family is **every configured treatment
+arm**, including any that currently have no data. The family is deliberately
+fixed by the experiment's design rather than by how many arms happen to have
+data at the moment you look: sizing it from the arms that are currently
+measurable would make the correction depend on the observed data, and would make
+p-values jump whenever an unrelated empty arm recorded its first trial. The cost
+is that a permanently empty arm — one with weight `0`, or one created after the
+selected range began — still consumes a comparison.
+
+Each treatment also shows its absolute lift and a pairwise 95% anytime-valid
+confidence interval. **These intervals are not Holm-adjusted.** They answer "how
+large is this arm's lift" rather than "which arms survive the family-wise
+decision", so with several treatments an interval can exclude zero while the
+same row's adjusted p-value sits above 0.05. Read the highlighted p-value for
+the decision and the interval for the magnitude.
+
+Sparse conversion counts produce wide intervals rather than unreliable
+approximations; `Not enough data` appears only when the control or treatment has
+no eligible trials.
+
+The p-values and confidence intervals remain valid when results are checked
+repeatedly and the experiment is stopped based on them. This guarantee assumes
+the experiment's start date, metric, and eligibility rules were fixed
+independently of the observed results. Trying several date ranges or metrics and
+reporting only the best result is a separate multiple-testing problem.
 
 
 ---
