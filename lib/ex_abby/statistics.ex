@@ -52,6 +52,29 @@ defmodule ExAbby.Statistics do
   """
   def compare_to_control(summary, metric, opts \\ [])
       when is_list(summary) and metric in [:success1, :success2] do
+    case compare_metrics_to_control(summary, [metric], opts) do
+      {:ok, significance_by_metric} -> {:ok, Map.fetch!(significance_by_metric, metric)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Compares several success metrics with control as one Holm correction family.
+
+  A treatment can be significant for any requested metric; the other metrics do
+  not also need to be significant. Combining the metrics into one family keeps
+  the overall false-positive rate at `:alpha` when any metric can identify a
+  winner.
+
+  The returned map contains the same significance result as
+  `compare_to_control/3` for each requested metric. Every configured treatment
+  and requested metric remains in the family even when it has insufficient data.
+  """
+  def compare_metrics_to_control(summary, metrics, opts \\ [])
+      when is_list(summary) and is_list(metrics) do
+    metrics = Enum.uniq(metrics)
+    validate_metrics!(metrics)
+
     control_name = Keyword.get(opts, :control_name, "control")
     alpha = Keyword.get(opts, :alpha, @default_alpha)
     validate_alpha!(alpha)
@@ -62,24 +85,42 @@ defmodule ExAbby.Statistics do
 
       control ->
         treatments = Enum.reject(summary, &(&1.variation_id == control.variation_id))
+        family_size = length(treatments) * length(metrics)
 
         comparisons =
-          treatments
-          |> Enum.map(&compare_pair(control, &1, metric, alpha))
-          |> holm_adjust(length(treatments), alpha)
-          |> Map.new(&{&1.variation_id, Map.delete(&1, :variation_id)})
+          for metric <- metrics, treatment <- treatments do
+            control
+            |> compare_pair(treatment, metric, alpha)
+            |> Map.put(:metric, metric)
+          end
+          |> holm_adjust(family_size, alpha)
+          |> Enum.group_by(& &1.metric)
 
-        {:ok,
-         %{
-           alpha: alpha,
-           anytime_valid?: true,
-           comparisons: comparisons,
-           control_name: control_name,
-           control_variation_id: control.variation_id,
-           correction: :holm,
-           method: :beta_binomial_mixture_confidence_sequence,
-           metric: metric
-         }}
+        significance_by_metric =
+          Map.new(metrics, fn metric ->
+            metric_comparisons =
+              comparisons
+              |> Map.get(metric, [])
+              |> Map.new(fn comparison ->
+                {comparison.variation_id, Map.drop(comparison, [:metric, :variation_id])}
+              end)
+
+            {metric,
+             %{
+               alpha: alpha,
+               anytime_valid?: true,
+               comparisons: metric_comparisons,
+               control_name: control_name,
+               control_variation_id: control.variation_id,
+               correction: :holm,
+               correction_family: metrics,
+               correction_family_size: family_size,
+               method: :beta_binomial_mixture_confidence_sequence,
+               metric: metric
+             }}
+          end)
+
+        {:ok, significance_by_metric}
     end
   end
 
@@ -312,6 +353,16 @@ defmodule ExAbby.Statistics do
     raise ArgumentError, "alpha must be greater than 0 and at most 1"
   end
 
+  defp validate_metrics!([]) do
+    raise ArgumentError, "at least one success metric is required"
+  end
+
+  defp validate_metrics!(metrics) do
+    unless Enum.all?(metrics, &(&1 in [:success1, :success2])) do
+      raise ArgumentError, "metrics must contain only :success1 or :success2"
+    end
+  end
+
   defp holm_adjust(comparisons, family_size, alpha) do
     ready =
       comparisons
@@ -333,11 +384,12 @@ defmodule ExAbby.Statistics do
           |> Map.put(:p_value, adjusted_p_value)
           |> Map.put(:significant?, adjusted_p_value < alpha)
 
-        {adjusted_p_value, Map.put(adjusted, comparison.variation_id, result)}
+        key = {comparison.metric, comparison.variation_id}
+        {adjusted_p_value, Map.put(adjusted, key, result)}
       end)
 
     Enum.map(comparisons, fn comparison ->
-      Map.get(adjusted_by_variation, comparison.variation_id, comparison)
+      Map.get(adjusted_by_variation, {comparison.metric, comparison.variation_id}, comparison)
     end)
   end
 end

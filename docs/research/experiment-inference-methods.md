@@ -8,9 +8,9 @@ A Bayesian Beta-Binomial view is viable if ExAbby deliberately changes the produ
 
 ## Implemented design
 
-ExAbby now uses a two-sided beta-binomial mixture confidence sequence from Howard et al. for each arm's Bernoulli conversion mean. Combining the treatment and control sequences with an equal error split yields an anytime-valid confidence sequence for absolute lift. Inverting that sequence produces the raw treatment-versus-control p-value, and Holm's procedure adjusts the family across treatment arms. This remains dependency-free and computable from the summary counts ExAbby already exposes while adapting to the Bernoulli mean more tightly than the generic Hoeffding normal-mixture boundary.
+ExAbby now uses a two-sided beta-binomial mixture confidence sequence from Howard et al. for each arm's Bernoulli conversion mean. Combining the treatment and control sequences with an equal error split yields an anytime-valid confidence sequence for absolute lift. Inverting that sequence produces the raw treatment-versus-control p-value, and Holm's procedure jointly adjusts every treatment-by-metric comparison shown on the results page. This remains dependency-free and computable from the summary counts ExAbby already exposes while adapting to the Bernoulli mean more tightly than the generic Hoeffding normal-mixture boundary.
 
-The guarantee covers continuous monitoring and data-dependent stopping for a fixed start date, metric, and eligibility rule. Selecting date ranges, metrics, or exclusions after inspecting results is a separate selection problem and is not made valid merely by using a confidence sequence.
+The guarantee covers continuous monitoring and data-dependent stopping for fixed start-date, metric-family, and eligibility rules. Selecting date ranges, additional metrics, or exclusions after inspecting results is a separate selection problem and is not made valid merely by using a confidence sequence.
 
 ## The three options
 
@@ -25,7 +25,7 @@ The replaced design was a reasonable, small implementation of a conventional fix
 
 Its main limitation is not the control comparison or Holm correction. It is **when the result is read and acted upon**. Fixed-horizon p-values assume that the sample size or analysis time was chosen independently of the accumulating result. Johari et al. show that ordinary p-values and confidence intervals become unreliable when people continuously monitor a test and choose when to stop; their always-valid methods are designed for exactly that workflow ([Johari et al., 2021](https://pubsonline.informs.org/doi/10.1287/opre.2021.2135)). A continuously updating admin screen makes that misuse likely even if the calculation itself is correct.
 
-The current sparse-cell guard is honest but produces no inferential result on many low-traffic experiments. It also does not solve low power: a non-significant p-value is not evidence that the treatment and control are equivalent. Finally, “Holm per metric” controls the family across arms for that metric, not across every metric, time window, segment, or exploratory analysis a user might inspect.
+The current sparse-cell guard is honest but produces no inferential result on many low-traffic experiments. It also does not solve low power: a non-significant p-value is not evidence that the treatment and control are equivalent. A joint Holm family across configured outcomes controls the displayed treatment-by-metric decision, but it does not cover additional time windows, segments, or exploratory analyses a user might inspect.
 
 **Use this option when:** the experiment has one declared primary metric, a planned end/sample size, and the decision is made once at that endpoint.
 
@@ -68,7 +68,7 @@ For the p-value feature, the default results table should show, for every treatm
 1. Observed conversion rate and observed absolute lift.
 2. An anytime-valid p-value versus control.
 3. A confidence sequence for absolute lift, so effect magnitude is visible alongside significance.
-4. Multiplicity-adjusted status across all treatment arms for the declared primary metric, using a sequentially valid multiple-testing procedure rather than assuming the fixed-horizon composition remains valid.
+4. Multiplicity-adjusted status across every displayed treatment-by-metric comparison, so either configured success metric can identify a winner without requiring both metrics to become significant.
 5. A neutral state such as “collect more data” until a configured minimum exposure/duration floor and decision threshold are both met.
 
 If ExAbby also offers a Bayesian decision panel, it should show posterior lift with a credible interval, `P(lift > minimum practical lift)`, expected loss/regret, and—when there are three or more arms—probability each arm is best. Its prior must be visible and configurable. A generic proper prior can be offered as a transparent library default, but it should be called “weak default,” not “uninformative.” If adopters have comparable historical experiments, ExAbby can later support a baseline-and-strength prior or empirical-Bayes calibration. A simple sensitivity check using more than one plausible prior is valuable when data are sparse.

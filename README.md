@@ -374,16 +374,17 @@ inverting beta-binomial mixture confidence sequences for the binary conversion
 rate in each arm. The calculation uses unique converters and trials in the
 selected date range; excluded trials do not contribute to either count.
 
-When an experiment has multiple treatments, ExAbby applies Holm's adjustment to
-reduce false positives from making several comparisons. Adjusted values below
-0.05 are highlighted. The correction family is **every configured treatment
-arm**, including any that currently have no data. The family is deliberately
-fixed by the experiment's design rather than by how many arms happen to have
-data at the moment you look: sizing it from the arms that are currently
-measurable would make the correction depend on the observed data, and would make
-p-values jump whenever an unrelated empty arm recorded its first trial. The cost
-is that a permanently empty arm — one with weight `0`, or one created after the
-selected range began — still consumes a comparison.
+ExAbby applies Holm's adjustment to reduce false positives from making several
+comparisons. Adjusted values below 0.05 are highlighted. The correction family
+is **every configured treatment arm across every displayed success metric**,
+including any arm that currently has no data. Either success metric can identify
+a winner; both do not need to be significant. The family is deliberately fixed
+by the experiment's design rather than by how many arms happen to have data at
+the moment you look: sizing it from the arms that are currently measurable would
+make the correction depend on the observed data, and would make p-values jump
+whenever an unrelated empty arm recorded its first trial. The cost is that a
+permanently empty arm — one with weight `0`, or one created after the selected
+range began — still consumes a comparison for each displayed metric.
 
 Each treatment also shows its absolute lift and a pairwise 95% anytime-valid
 confidence interval. **These intervals are not Holm-adjusted.** They answer "how

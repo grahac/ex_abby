@@ -159,6 +159,54 @@ defmodule ExAbby.StatisticsTest do
     end
   end
 
+  describe "compare_metrics_to_control/3" do
+    test "uses one Holm family while allowing either success metric to identify a winner" do
+      summary = [
+        result(1, "control", 1_000, 100, 100),
+        result(2, "signup_winner", 1_000, 200, 100),
+        result(3, "purchase_winner", 1_000, 100, 250)
+      ]
+
+      assert {:ok, significance_by_metric} =
+               Statistics.compare_metrics_to_control(summary, [:success1, :success2])
+
+      success1 = significance_by_metric.success1
+      success2 = significance_by_metric.success2
+
+      assert success1.correction == :holm
+      assert success1.correction_family == [:success1, :success2]
+      assert success2.correction_family == [:success1, :success2]
+
+      assert success1.comparisons[2].significant?
+      refute success1.comparisons[3].significant?
+      refute success2.comparisons[2].significant?
+      assert success2.comparisons[3].significant?
+
+      assert_in_delta(
+        success2.comparisons[3].p_value,
+        success2.comparisons[3].raw_p_value * 4,
+        1.0e-12
+      )
+
+      assert_in_delta(
+        success1.comparisons[2].p_value,
+        success1.comparisons[2].raw_p_value * 3,
+        1.0e-12
+      )
+    end
+
+    test "returns empty comparison maps when the experiment only has a control" do
+      summary = [result(1, "control", 1_000, 100, 100)]
+
+      assert {:ok, significance_by_metric} =
+               Statistics.compare_metrics_to_control(summary, [:success1, :success2])
+
+      assert significance_by_metric.success1.comparisons == %{}
+      assert significance_by_metric.success2.comparisons == %{}
+      assert significance_by_metric.success1.correction_family_size == 0
+    end
+  end
+
   defp result(id, name, trials, success1_unique, success2_unique \\ 0) do
     %{
       variation_id: id,

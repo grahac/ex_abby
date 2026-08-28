@@ -24,19 +24,26 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "th", "Anytime P vs control")
+    assert has_element?(view, "th", "P vs control")
     assert has_element?(view, "td", "Control")
     assert has_element?(view, "td span", "0.110")
     assert has_element?(view, "td.p-value-significant span", "< 0.001")
 
     assert has_element?(
              view,
-             "td.p-value-significant small",
-             "Lift +25.0 pp; 95% anytime CI (unadjusted) +12.9 to +36.5 pp"
+             "td.p-value-significant small span",
+             "+25.0% [+12.9%, +36.5%]"
+           )
+
+    assert has_element?(
+             view,
+             "td.p-value-significant svg.sig-chart-significant title",
+             "Lift +25.0%; 95% interval +12.9% to +36.5%"
            )
 
     html = render(view)
     assert html =~ "Anytime-valid p-values compare each treatment with"
+    assert html =~ "Negative means the treatment converted worse than"
     assert html =~ "<strong>control</strong>"
   end
 
@@ -76,14 +83,43 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "td.p-value-unavailable span", "Not enough data")
+    assert has_element?(view, "td.p-value-unavailable span", "No data")
 
     # The empty arm still consumes a Holm comparison, so treatment_a is adjusted
     # against a family of two rather than one.
     assert has_element?(view, "td.p-value-significant span", "< 0.001")
   end
 
-  defp insert_trials(experiment, variation_name, count, conversion_count) do
+  test "jointly corrects both success metrics while allowing either one to win", %{conn: conn} do
+    {:ok, experiment} =
+      Experiments.upsert_experiment_and_update_weights(
+        "significance_multiple_metrics",
+        "Significance across multiple metrics",
+        [{"control", 1.0}, {"treatment", 1.0}],
+        success1_label: "Signup",
+        success2_label: "Purchase"
+      )
+
+    insert_trials(experiment, "control", 1_000, 100, 100)
+    insert_trials(experiment, "treatment", 1_000, 100, 185)
+
+    {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
+
+    assert has_element?(view, "td.p-value-significant span", "0.025")
+    assert has_element?(view, "td span", "1.000")
+
+    html = render(view)
+    assert html =~ "Either success metric can be highlighted; both"
+    assert html =~ "do not need to be significant."
+  end
+
+  defp insert_trials(
+         experiment,
+         variation_name,
+         count,
+         success1_conversion_count,
+         success2_conversion_count \\ 0
+       ) do
     variation =
       Repo.one!(
         from(v in Variation,
@@ -96,14 +132,17 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     rows =
       for index <- 1..count do
-        converted? = index <= conversion_count
+        success1? = index <= success1_conversion_count
+        success2? = index <= success2_conversion_count
 
         %{
           experiment_id: experiment.id,
           variation_id: variation.id,
           session_id: "#{variation_name}-#{index}",
-          success1_count: if(converted?, do: 1, else: 0),
-          success1_date: if(converted?, do: now, else: nil),
+          success1_count: if(success1?, do: 1, else: 0),
+          success1_date: if(success1?, do: now, else: nil),
+          success2_count: if(success2?, do: 1, else: 0),
+          success2_date: if(success2?, do: now, else: nil),
           inserted_at: timestamp,
           updated_at: timestamp
         }
