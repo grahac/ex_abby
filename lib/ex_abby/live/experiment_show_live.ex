@@ -2,7 +2,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
   @moduledoc """
   Shows a single experiment's variations, plus editing of weights.
   """
-  alias ExAbby.Experiments
+  alias ExAbby.{Experiments, Statistics}
   use Phoenix.LiveView
 
   def mount(%{"id" => id}, _session, socket) do
@@ -227,6 +227,71 @@ defmodule ExAbby.Live.ExperimentShowLive do
       background-color: #f3f4f6;
       cursor: not-allowed;
     }
+
+    .p-value-significant {
+      color: #047857;
+      font-weight: bold;
+    }
+
+    .p-value-unavailable {
+      color: #64748b;
+      font-size: 0.875rem;
+    }
+
+    .p-value-detail {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      margin-top: 4px;
+      color: #64748b;
+      font-size: 0.75rem;
+      font-weight: normal;
+      white-space: nowrap;
+    }
+
+    .sig-chart {
+      flex: none;
+    }
+
+    .sig-chart-zero {
+      stroke: #cbd5e1;
+      stroke-width: 1;
+    }
+
+    .sig-chart-range {
+      stroke: #94a3b8;
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
+    .sig-chart-point {
+      fill: #64748b;
+    }
+
+    .sig-chart-significant .sig-chart-range {
+      stroke: #047857;
+    }
+
+    .sig-chart-significant .sig-chart-point {
+      fill: #047857;
+    }
+
+    .significance-note {
+      margin-top: 12px;
+      color: #475569;
+      font-size: 0.875rem;
+    }
+
+    .significance-warning {
+      margin-top: 12px;
+      padding: 12px;
+      background-color: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 4px;
+      color: #92400e;
+      font-size: 0.875rem;
+    }
     </style>
 
     <div class="container">
@@ -293,11 +358,13 @@ defmodule ExAbby.Live.ExperimentShowLive do
               <th><%= @experiment.success1_label || "Success" %> Unique</th>
               <th><%= @experiment.success1_label || "Success" %> Amount</th>
               <th><%= @experiment.success1_label || "Success" %> Rate</th>
+              <th>P vs <%= @control_variation_name %></th>
               <%= if show_success2?(@experiment, @summary) do %>
                 <th><%= @experiment.success2_label %></th>
                 <th><%= @experiment.success2_label %> Unique</th>
                 <th><%= @experiment.success2_label %> Amount</th>
                 <th><%= @experiment.success2_label %> Rate</th>
+                <th>P vs <%= @control_variation_name %></th>
               <% end %>
             </tr>
           </thead>
@@ -323,11 +390,21 @@ defmodule ExAbby.Live.ExperimentShowLive do
                 <td><%= row.success1.unique_count %></td>
                 <td><%= Float.round(row.success1.amount, 2) %></td>
                 <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+                <.significance_td
+                  significance={@success1_significance}
+                  variation_id={row.variation_id}
+                  scale={@success1_scale}
+                />
                 <%= if show_success2?(@experiment, @summary) do %>
                   <td><%= row.success2.count %></td>
                   <td><%= row.success2.unique_count %></td>
                   <td><%= Float.round(row.success2.amount, 2) %></td>
                   <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
+                  <.significance_td
+                    significance={@success2_significance}
+                    variation_id={row.variation_id}
+                    scale={@success2_scale}
+                  />
                 <% end %>
               </tr>
             <% end %>
@@ -338,6 +415,34 @@ defmodule ExAbby.Live.ExperimentShowLive do
           <button type="submit" class="save-button">Save Weights</button>
         <% end %>
       </form>
+
+      <%= case @success1_significance do %>
+        <% {:ok, _significance} -> %>
+          <p class="significance-note">
+            Anytime-valid p-values compare each treatment with
+            <strong><%= @control_variation_name %></strong> using unique conversions in the
+            selected date range. They remain valid during continuous monitoring when the start
+            date and metrics are fixed independently of the results. P-values are Holm-adjusted
+            together across every configured treatment arm and displayed success metric,
+            including any arm with no data yet. Either success metric can be highlighted; both
+            do not need to be significant.
+          </p>
+          <p class="significance-note">
+            The chart plots the measured lift (dot) and its 95% anytime-valid interval (bar)
+            against a zero line. Values are the <strong>difference between the two conversion
+            rates in points</strong>, not a relative change: a control at 20% against a treatment
+            at 30% shows as +10%, not +50%. Negative means the treatment converted worse than
+            control. A bar that crosses the zero line means the data cannot
+            yet rule out "no difference". Intervals are <em>not</em> Holm-adjusted, so with
+            several treatments a bar can clear zero while the adjusted p-value is above 0.05.
+            "No data" means either arm has no eligible trials.
+          </p>
+        <% {:error, :control_not_found} -> %>
+          <p class="significance-warning">
+            Significance is unavailable because this experiment has no variation named
+            <strong><%= @control_variation_name %></strong>.
+          </p>
+      <% end %>
 
       <%= if @updated? do %>
         <div class="success-message">
@@ -431,6 +536,30 @@ defmodule ExAbby.Live.ExperimentShowLive do
     if experiment do
       summary = Experiments.experiment_summary(experiment.name)
 
+      control_variation_name =
+        Application.get_env(:ex_abby, :control_variation_name, "control")
+
+      show_success2 = show_success2?(experiment, summary)
+      metrics = if show_success2, do: [:success1, :success2], else: [:success1]
+
+      {success1_significance, success2_significance} =
+        case Statistics.compare_metrics_to_control(summary, metrics,
+               control_name: control_variation_name
+             ) do
+          {:ok, significance_by_metric} ->
+            success1 = {:ok, Map.fetch!(significance_by_metric, :success1)}
+
+            success2 =
+              if show_success2 do
+                {:ok, Map.fetch!(significance_by_metric, :success2)}
+              end
+
+            {success1, success2}
+
+          {:error, _reason} = error ->
+            {error, if(show_success2, do: error)}
+        end
+
       winner_variation =
         if experiment.winner_variation_id do
           Experiments.get_variation(experiment.winner_variation_id)
@@ -444,6 +573,11 @@ defmodule ExAbby.Live.ExperimentShowLive do
       |> assign(:updated?, false)
       |> assign(:weights_form, build_weights_form(experiment.variations))
       |> assign(:winner_variation, winner_variation)
+      |> assign(:control_variation_name, control_variation_name)
+      |> assign(:success1_significance, success1_significance)
+      |> assign(:success2_significance, success2_significance)
+      |> assign(:success1_scale, significance_scale(success1_significance))
+      |> assign(:success2_scale, significance_scale(success2_significance))
     else
       socket
     end
@@ -457,6 +591,125 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
   defp build_weights_form(variations) do
     for v <- variations, do: {v.id, v.name, v.weight}
+  end
+
+  # One dispatch for the whole cell: which arm this row is, and what to draw.
+  defp significance_cell({:error, :control_not_found}, _variation_id),
+    do: %{kind: :unavailable, class: "p-value-unavailable", label: "—"}
+
+  defp significance_cell(
+         {:ok, %{control_variation_id: control_variation_id}},
+         control_variation_id
+       ),
+       do: %{kind: :control, class: nil, label: "Control"}
+
+  defp significance_cell({:ok, %{comparisons: comparisons}}, variation_id) do
+    case Map.fetch!(comparisons, variation_id) do
+      %{status: :insufficient_data} ->
+        %{kind: :no_data, class: "p-value-unavailable", label: "No data"}
+
+      %{p_value: p_value, significant?: significant?, lift: lift, confidence_interval: interval} ->
+        %{
+          kind: :comparison,
+          class: if(significant?, do: "p-value-significant"),
+          label: format_p_value(p_value),
+          significant?: significant?,
+          lift: lift,
+          lower: interval.lower,
+          upper: interval.upper
+        }
+    end
+  end
+
+  defp format_p_value(p_value) when p_value < 0.001, do: "< 0.001"
+  defp format_p_value(p_value), do: :erlang.float_to_binary(p_value, decimals: 3)
+
+  # A shared horizontal scale for every row in a column, so the bars are
+  # comparable with each other and still use the width once intervals tighten.
+  @scale_steps [1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0]
+
+  defp significance_scale({:ok, %{comparisons: comparisons}}) do
+    bounds =
+      comparisons
+      |> Map.values()
+      |> Enum.filter(&Map.has_key?(&1, :confidence_interval))
+      |> Enum.map(fn %{confidence_interval: interval} ->
+        max(abs(interval.lower), abs(interval.upper)) * 100
+      end)
+
+    case bounds do
+      [] -> nil
+      bounds -> Enum.find(@scale_steps, 100.0, &(&1 >= Enum.max(bounds)))
+    end
+  end
+
+  defp significance_scale(_significance), do: nil
+
+  attr(:significance, :any, required: true)
+  attr(:variation_id, :integer, required: true)
+  attr(:scale, :any, required: true)
+
+  defp significance_td(assigns) do
+    assigns =
+      assign(assigns, :cell, significance_cell(assigns.significance, assigns.variation_id))
+
+    ~H"""
+    <td class={@cell.class}>
+      <span>{@cell.label}</span>
+      <%= if @cell.kind == :comparison do %>
+        <small class="p-value-detail">
+          <svg
+            class={["sig-chart", @cell.significant? && "sig-chart-significant"]}
+            width="120"
+            height="16"
+            viewBox="0 0 120 16"
+            role="img"
+          >
+            <title>{chart_title(@cell)}</title>
+            <line
+              class="sig-chart-zero"
+              x1={chart_x(0.0, @scale)}
+              y1="1"
+              x2={chart_x(0.0, @scale)}
+              y2="15"
+            />
+            <line
+              class="sig-chart-range"
+              x1={chart_x(@cell.lower, @scale)}
+              y1="8"
+              x2={chart_x(@cell.upper, @scale)}
+              y2="8"
+            />
+            <circle class="sig-chart-point" cx={chart_x(@cell.lift, @scale)} cy="8" r="3" />
+          </svg>
+          <span>
+            {format_percent(@cell.lift)} [{format_percent(@cell.lower)}, {format_percent(@cell.upper)}]
+          </span>
+        </small>
+      <% end %>
+    </td>
+    """
+  end
+
+  defp chart_x(proportion, scale) do
+    points = max(-scale, min(scale, proportion * 100))
+    Float.round(60.0 + points / scale * 58.0, 2)
+  end
+
+  defp chart_title(cell) do
+    "Lift #{format_percent(cell.lift)}; 95% interval " <>
+      "#{format_percent(cell.lower)} to #{format_percent(cell.upper)}"
+  end
+
+  defp format_percent(proportion) do
+    value = Float.round(proportion * 100, 1)
+    formatted = :erlang.float_to_binary(value, decimals: 1)
+
+    cond do
+      value > 0.0 -> "+" <> formatted <> "%"
+      value == 0.0 -> "0.0%"
+      true -> formatted <> "%"
+    end
   end
 
   defp validate_datetime(nil, _field), do: {:ok, nil}
