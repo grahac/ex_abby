@@ -41,8 +41,16 @@ defmodule ExAbby.AdminStyleTest do
         end_time: nil,
         from_to_error_message: nil,
         winner_variation: nil,
-        summary: [],
-        weights_form: [],
+        summary: [
+          %{
+            variation_id: 1,
+            variation_name: "control",
+            trials: 12,
+            success1: %{count: 4, unique_count: 3, amount: 12.5, rate: 0.25},
+            success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0}
+          }
+        ],
+        weights_form: [{1, "control", 0.5}],
         control_variation_name: "control",
         success1_significance: {:error, :control_not_found},
         success2_significance: nil,
@@ -69,6 +77,8 @@ defmodule ExAbby.AdminStyleTest do
 
     assert index_html =~ "ex-abby-table-frame"
     assert show_html =~ "ex-abby-table-frame"
+    assert show_html =~ "4 (3)"
+    assert show_html =~ ~s(name="weights[weight_1]")
     assert trials_html =~ "ex-abby-panel"
   end
 

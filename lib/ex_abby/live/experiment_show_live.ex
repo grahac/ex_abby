@@ -307,7 +307,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
                         step="0.01"
                         min="0"
                         max="1"
-                      class="ex-abby-input weight-input"
+                        class="ex-abby-input weight-input"
                         disabled={not is_nil(@experiment.archived_at)}
                       />
                     </td>
