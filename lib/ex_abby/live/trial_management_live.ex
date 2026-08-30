@@ -62,213 +62,267 @@ defmodule ExAbby.Live.TrialManagementLive do
 
   def render(assigns) do
     ~H"""
-       <style>
-      .trial-container {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 1.5rem;
-      }
-
-
-      .back-button {
-        display: inline-flex;
-        padding: 0.5rem 1rem;
-        background-color: #93c5fd;
-        color: #1e3a8a;
-        text-decoration: none;
-        border-radius: 0.375rem;
-        margin-bottom: 1rem;
-        width: fit-content;
-      }
-      .back-button:hover {
-        background-color: #60a5fa;
-      }
-      .section-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 1rem;
-      }
-
-      .section-title {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #1e3a8a;
-      }
-
-      .toggle-button {
-        margin-left: 0.5rem;
-        background: none;
-        border: none;
-        color: #2563eb;
-        cursor: pointer;
-      }
-
-      .experiment-card {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        margin-bottom: 1rem;
-      }
-
-      .experiment-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 1.5rem;
-      }
-
-      .experiment-info {
-        flex: 1;
-      }
-
-      .experiment-name {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: #1e3a8a;
-        margin-bottom: 0.5rem;
-      }
-
-      .experiment-description {
-        color: #4b5563;
-        font-size: 0.875rem;
-        line-height: 1.4;
-      }
-
-      .trial-stats {
-        text-align: right;
-        min-width: 150px;
-        max-width: 300px;
-        font-size: 0.875rem;
-        color: #2563eb;
-        background-color: #f3f4f6;
-        padding: 0.75rem;
-        border-radius: 0.375rem;
-      }
-
-      .variation-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        margin-top: 1rem;
-      }
-
-      .variation-item {
+    <ExAbby.Live.AdminStyle.styles />
+    <style>
+      .ex-abby-admin .section-header {
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 0.375rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--ex-abby-color-border);
       }
 
-      .variation-item:hover {
-        background-color: #f3f4f6;
-        border-color: #d1d5db;
-      }
-
-      .variation-item input[type="radio"] {
+      .ex-abby-admin .section-title {
         margin: 0;
+        color: var(--ex-abby-color-ink);
+        font-family: Geist, "General Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.125rem;
+        font-weight: 500;
+        letter-spacing: -0.015em;
+      }
+
+      .ex-abby-admin .toggle-button {
+        display: inline-flex;
+        width: 2rem;
+        height: 2rem;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 9999px;
+        color: var(--ex-abby-color-ink-soft);
         cursor: pointer;
       }
 
-      .variation-item span {
-        font-size: 0.875rem;
-        color: #374151;
+      .ex-abby-admin .toggle-button:hover {
+        background: var(--ex-abby-color-accent-wash);
+        color: var(--ex-abby-color-ink);
       }
 
-      .sections-wrapper {
+      .ex-abby-admin .trial-section__body {
+        padding: 1.25rem;
+      }
+
+      .ex-abby-admin .experiment-card {
+        padding: 1.25rem;
+        background: var(--ex-abby-color-surface);
+        border: 1px solid var(--ex-abby-color-border);
+        border-radius: 10px;
+      }
+
+      .ex-abby-admin .experiment-card + .experiment-card {
+        margin-top: 1rem;
+      }
+
+      .ex-abby-admin .experiment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .ex-abby-admin .experiment-info {
+        flex: 1;
+      }
+
+      .ex-abby-admin .experiment-name {
+        margin: 0;
+        color: var(--ex-abby-color-ink);
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .ex-abby-admin .experiment-description {
+        margin: 0.375rem 0 0;
+        color: var(--ex-abby-color-ink-soft);
+        font-size: 0.875rem;
+        line-height: 1.5;
+      }
+
+      .ex-abby-admin .trial-stats {
+        min-width: 10rem;
+        padding: 0.75rem;
+        background: var(--ex-abby-color-canvas);
+        border: 1px solid var(--ex-abby-color-border);
+        border-radius: 4px;
+        color: var(--ex-abby-color-ink-soft);
+        font-size: 0.8125rem;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      .ex-abby-admin .variation-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+
+      .ex-abby-admin .variation-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--ex-abby-color-surface);
+        border: 1px solid var(--ex-abby-color-border-strong);
+        border-radius: 9999px;
+        cursor: pointer;
+      }
+
+      .ex-abby-admin .variation-item:hover {
+        background: var(--ex-abby-color-canvas);
+        border-color: var(--ex-abby-color-warm-slate);
+      }
+
+      .ex-abby-admin .variation-item input[type="radio"] {
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+        accent-color: var(--ex-abby-color-accent);
+        cursor: pointer;
+      }
+
+      .ex-abby-admin .variation-item span {
+        font-size: 0.875rem;
+        color: var(--ex-abby-color-ink);
+      }
+
+      .ex-abby-admin .sections-wrapper {
         display: flex;
         flex-direction: column;
-        gap: 2rem;
+        gap: 1rem;
+      }
+
+      .ex-abby-admin .trial-page__back {
+        width: fit-content;
+        margin-bottom: 0.5rem;
+      }
+
+      @media (max-width: 640px) {
+        .ex-abby-admin .experiment-header {
+          flex-direction: column;
+        }
+
+        .ex-abby-admin .trial-stats {
+          width: 100%;
+          text-align: left;
+        }
       }
     </style>
 
-    <div class="trial-container">
-      <div class="sections-wrapper">
-      <.link :if={!@standalone} patch={"index"} class="back-button">← Back to Experiments</.link>
-        <.user_trials_section
-          user_trials_expanded={@user_trials_expanded}
-          user_id={@user_id}
-          user_experiments={@user_experiments}
-        />
-        <.session_trials_section
-          session_trials_expanded={@session_trials_expanded}
-          ex_abby_session_id={@ex_abby_session_id}
-          session_experiments={@session_experiments}
-        />
-      </div>
+    <div class="ex-abby-admin">
+      <main class="ex-abby-admin__shell">
+        <header class="ex-abby-admin__header">
+          <div>
+            <h1 class="ex-abby-admin__title">Trial Assignments</h1>
+            <p class="ex-abby-admin__subtitle">
+              Inspect and change the variations assigned to this user and browser session.
+            </p>
+          </div>
+        </header>
+
+        <div class="sections-wrapper">
+          <.link
+            :if={!@standalone}
+            patch={"index"}
+            class="ex-abby-button ex-abby-button--secondary trial-page__back"
+          >
+            ← Back to Experiments
+          </.link>
+          <.user_trials_section
+            user_trials_expanded={@user_trials_expanded}
+            user_id={@user_id}
+            user_experiments={@user_experiments}
+          />
+          <.session_trials_section
+            session_trials_expanded={@session_trials_expanded}
+            ex_abby_session_id={@ex_abby_session_id}
+            session_experiments={@session_experiments}
+          />
+        </div>
+      </main>
     </div>
     """
   end
 
   def user_trials_section(assigns) do
     ~H"""
-    <div>
-      <div class="flex items-center mb-4">
-        <h2 class="text-xl font-bold">User Trials</h2>
-        <button class="ml-2" phx-click="toggle-user-trials">
+    <section class="ex-abby-panel">
+      <header class="section-header">
+        <h2 class="section-title">User Trials</h2>
+        <button
+          class="toggle-button"
+          phx-click="toggle-user-trials"
+          aria-label="Toggle user trials"
+        >
           <%= if @user_trials_expanded, do: "▼", else: "▶" %>
         </button>
-      </div>
+      </header>
 
       <%= if @user_trials_expanded do %>
-        <%= if @user_id do %>
-          <%= if Enum.empty?(@user_experiments) do %>
-            <div class="text-center text-gray-600 p-4">
-              No experiments for this user.
-            </div>
+        <div class="trial-section__body">
+          <%= if @user_id do %>
+            <%= if Enum.empty?(@user_experiments) do %>
+              <div class="ex-abby-empty-state">
+                No experiments for this user.
+              </div>
+            <% else %>
+              <div>
+                <%= for experiment <- @user_experiments do %>
+                  <.experiment_card
+                    experiment={experiment}
+                    trial={Experiments.get_trial_by_user(experiment.id, @user_id)}
+                    type="experiment"
+                  />
+                <% end %>
+              </div>
+            <% end %>
           <% else %>
-            <div class="space-y-6">
-              <%= for experiment <- @user_experiments do %>
-                <.experiment_card
-                  experiment={experiment}
-                  trial={Experiments.get_trial_by_user(experiment.id, @user_id)}
-                  type="experiment"
-                />
-              <% end %>
+            <div class="ex-abby-empty-state">
+              No user ID provided and no current user found.
             </div>
           <% end %>
-        <% else %>
-          <div class="text-center text-gray-600 p-4">
-            No user ID provided and no current user found.
-          </div>
-        <% end %>
+        </div>
       <% end %>
-    </div>
+    </section>
     """
   end
 
   def session_trials_section(assigns) do
     ~H"""
-    <div>
-      <div class="flex items-center mb-4">
-        <h2 class="text-xl font-bold">Session Trials</h2>
-        <button class="ml-2" phx-click="toggle-session-trials">
+    <section class="ex-abby-panel">
+      <header class="section-header">
+        <h2 class="section-title">Session Trials</h2>
+        <button
+          class="toggle-button"
+          phx-click="toggle-session-trials"
+          aria-label="Toggle session trials"
+        >
           <%= if @session_trials_expanded, do: "▼", else: "▶" %>
         </button>
-      </div>
+      </header>
 
       <%= if @session_trials_expanded do %>
-        <%= if Enum.empty?(@session_experiments) do %>
-          <div style="text-align: center; padding: 1rem; color: #666;">
-            No session experiments for this session.
-          </div>
-        <% else %>
-          <div class="space-y-6">
-            <%= for experiment <- @session_experiments do %>
-              <.experiment_card
-                experiment={experiment}
-                trial={Experiments.get_trial_by_session(experiment.id, @ex_abby_session_id)}
-                type="session-experiment"
-              />
-            <% end %>
-          </div>
-        <% end %>
+        <div class="trial-section__body">
+          <%= if Enum.empty?(@session_experiments) do %>
+            <div class="ex-abby-empty-state">
+              No session experiments for this session.
+            </div>
+          <% else %>
+            <div>
+              <%= for experiment <- @session_experiments do %>
+                <.experiment_card
+                  experiment={experiment}
+                  trial={Experiments.get_trial_by_session(experiment.id, @ex_abby_session_id)}
+                  type="session-experiment"
+                />
+              <% end %>
+            </div>
+          <% end %>
+        </div>
       <% end %>
-    </div>
+    </section>
     """
   end
 
