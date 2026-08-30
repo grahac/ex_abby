@@ -283,12 +283,12 @@ defmodule ExAbby.Live.ExperimentShowLive do
                   <th>Weight</th>
                   <th>Variation</th>
                   <th>Trials</th>
-                  <th>{@experiment.success1_label || "Success"}<br />(Unique)</th>
+                  <th>{@experiment.success1_label || "Success"}<br />(Total / Unique)</th>
                   <th>{@experiment.success1_label || "Success"}<br />Amount</th>
                   <th>{@experiment.success1_label || "Success"}<br />Rate</th>
                   <th>P vs <%= @control_variation_name %></th>
                   <%= if show_success2?(@experiment, @summary) do %>
-                    <th>{@experiment.success2_label}<br />(Unique)</th>
+                    <th>{@experiment.success2_label}<br />(Total / Unique)</th>
                     <th>{@experiment.success2_label}<br />Amount</th>
                     <th>{@experiment.success2_label}<br />Rate</th>
                     <th>P vs <%= @control_variation_name %></th>
@@ -397,8 +397,8 @@ defmodule ExAbby.Live.ExperimentShowLive do
             </div>
           <% else %>
             <form phx-submit="archive" class="archive-form ex-abby-panel">
-              <label>Archive with winner (optional):</label>
-              <select name="winner_variation_id" class="ex-abby-select">
+              <label for="ex-abby-winner-variation">Archive with winner (optional):</label>
+              <select id="ex-abby-winner-variation" name="winner_variation_id" class="ex-abby-select">
                 <option value="">No winner</option>
                 <%= for v <- @experiment.variations do %>
                   <option value={v.id}>{v.name}</option>
