@@ -23,435 +23,394 @@ defmodule ExAbby.Live.ExperimentShowLive do
 
   def render(assigns) do
     ~H"""
+    <ExAbby.Live.AdminStyle.styles />
     <style>
-      .container {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 20px;
+      .ex-abby-admin .ex-abby-show__back {
+        margin-bottom: 1.5rem;
       }
 
-      .back-button {
-        display: inline-block;
-        padding: 8px 16px;
-        background-color: #93c5fd;
-        color: #1e3a8a;
-        text-decoration: none;
-        border-radius: 4px;
-        margin-bottom: 16px;
-      }
-
-      .header {
+      .ex-abby-admin .ex-abby-show__header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 32px;
+        gap: 2rem;
+        margin-bottom: 2rem;
       }
 
-      .title-section h2 {
-        font-size: 24px;
-        font-weight: bold;
-        color: #1e3a8a;
-        margin: 0;
+      .ex-abby-admin .date-filter {
+        flex: none;
+        padding: 1rem;
       }
 
-      .title-section p {
-        margin-top: 8px;
-        color: #2563eb;
-      }
-
-      .date-filter {
-        background: #f8fafc;
-        padding: 16px;
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-      }
-
-      .date-filter form {
+      .ex-abby-admin .date-filter form {
         display: flex;
-        gap: 16px;
+        gap: 0.75rem;
         align-items: flex-end;
       }
 
-      .date-filter label {
-        display: block;
-        font-size: 14px;
-        margin-bottom: 4px;
-        color: #475569;
+      .ex-abby-admin .date-filter input {
+        width: 12.5rem;
       }
 
-      .date-filter input {
-        padding: 6px 12px;
-        border: 1px solid #cbd5e1;
+      .ex-abby-admin .weight-input {
+        width: 4rem;
+      }
+
+      /* Let the many-column results table pack tighter: allow long header
+         labels to wrap onto multiple rows and shrink the header type so each
+         column sizes to its widest word rather than the whole phrase. */
+      .ex-abby-admin .ex-abby-table th {
+        font-size: 0.625rem;
+        white-space: normal;
+        vertical-align: bottom;
+        line-height: 1.25;
+      }
+
+      .ex-abby-admin .save-button {
+        margin-top: 1rem;
+      }
+
+      .ex-abby-admin .success-message {
+        display: flex;
+        align-items: center;
+        margin-top: 1rem;
+        padding: 0.875rem 1rem;
+        background: var(--ex-abby-color-success-surface);
+        border: 1px solid var(--ex-abby-color-success);
         border-radius: 4px;
-        width: 200px;
+        color: var(--ex-abby-color-success);
+        font-size: 0.875rem;
+        font-weight: 600;
       }
 
-      .date-filter button {
-        padding: 8px 16px;
-        background-color: #2563eb;
-        color: white;
-        border: none;
+      .ex-abby-admin .date-filter .error-message {
+        margin-top: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--ex-abby-color-danger-surface);
+        border: 1px solid var(--ex-abby-color-danger);
         border-radius: 4px;
-        cursor: pointer;
+        color: var(--ex-abby-color-danger);
+        font-size: 0.875rem;
       }
 
-      .date-filter button:hover {
-        background-color: #1d4ed8;
+      .ex-abby-admin .archive-section {
+        margin-top: 1.5rem;
       }
 
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 16px;
+      .ex-abby-admin .archived-banner,
+      .ex-abby-admin .archive-form {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
       }
 
-      th {
-        background-color: #eff6ff;
-        padding: 12px;
-        text-align: left;
-        font-size: 12px;
-        color: #1d4ed8;
+      .ex-abby-admin .archived-banner {
+        background: var(--ex-abby-color-warning-surface);
+        border-color: var(--ex-abby-color-warning);
+        color: var(--ex-abby-color-warning);
+      }
+
+      .ex-abby-admin .archived-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
       }
 
-      td {
-        padding: 12px;
-        border-top: 1px solid #e5e7eb;
+      .ex-abby-admin .unarchive-button {
+        margin-left: auto;
       }
 
-      tr:hover {
-        background-color: #f8fafc;
+      .ex-abby-admin .archive-form label {
+        color: var(--ex-abby-color-ink-soft);
+        font-size: 0.875rem;
+        font-weight: 500;
       }
 
-      .weight-input {
-        width: 80px;
-        padding: 6px;
-        border: 1px solid #93c5fd;
-        border-radius: 4px;
+      .ex-abby-admin .weight-input:disabled {
+        background: var(--ex-abby-color-canvas);
+        color: var(--ex-abby-color-ink-soft);
+        cursor: not-allowed;
       }
 
-      .save-button {
-        margin-top: 16px;
-        padding: 8px 16px;
-        background-color: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
+      .ex-abby-admin .p-value-significant {
+        color: var(--ex-abby-color-success);
+        font-weight: 700;
       }
 
-      .success-message {
-        margin-top: 16px;
-        padding: 16px;
-        background-color: #eff6ff;
-        border: 1px solid #bfdbfe;
-        color: #1e40af;
-        border-radius: 4px;
+      .ex-abby-admin .p-value-unavailable,
+      .ex-abby-admin .p-value-detail {
+        color: var(--ex-abby-color-ink-soft);
+      }
+
+      .ex-abby-admin .p-value-unavailable {
+        font-size: 0.875rem;
+      }
+
+      .ex-abby-admin .p-value-detail {
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        margin-top: 4px;
+        font-size: 0.75rem;
+        font-weight: 400;
+        white-space: nowrap;
       }
-    .date-filter .error-message {
-    margin-top: 12px;
-    background-color: #fde8e8;
-    border: 1px solid #f98080;
-    color: #c81e1e;
-    padding: 0.75rem 1rem;
-    border-radius: 0.25rem;
-    font-size: 14px;
-    }
 
-    .archive-section {
-      margin-bottom: 1.5rem;
-    }
+      .ex-abby-admin .sig-chart {
+        flex: none;
+      }
 
-    .archived-banner {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background-color: #fef3c7;
-      border: 1px solid #f59e0b;
-      border-radius: 4px;
-    }
+      .ex-abby-admin .sig-chart-zero {
+        stroke: var(--ex-abby-color-border-strong);
+        stroke-width: 1;
+      }
 
-    .archived-label {
-      font-weight: bold;
-      color: #b45309;
-      text-transform: uppercase;
-    }
+      .ex-abby-admin .sig-chart-range {
+        stroke: var(--ex-abby-color-warm-slate);
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
 
-    .unarchive-button {
-      margin-left: auto;
-      padding: 0.5rem 1rem;
-      background-color: #059669;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      .ex-abby-admin .sig-chart-point {
+        fill: var(--ex-abby-color-warm-slate);
+      }
 
-    .unarchive-button:hover {
-      background-color: #047857;
-    }
+      .ex-abby-admin .sig-chart-significant .sig-chart-range {
+        stroke: var(--ex-abby-color-success);
+      }
 
-    .archive-form {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background-color: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
-    }
+      .ex-abby-admin .sig-chart-significant .sig-chart-point {
+        fill: var(--ex-abby-color-success);
+      }
 
-    .archive-form select {
-      padding: 0.5rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 4px;
-    }
+      .ex-abby-admin .significance-note {
+        max-width: 60rem;
+        margin: 0.75rem 0 0;
+        color: var(--ex-abby-color-ink-soft);
+        font-size: 0.875rem;
+        line-height: 1.6;
+      }
 
-    .archive-button {
-      padding: 0.5rem 1rem;
-      background-color: #dc2626;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
+      .ex-abby-admin .significance-warning {
+        margin-top: 0.75rem;
+        padding: 0.875rem 1rem;
+        background: var(--ex-abby-color-warning-surface);
+        border: 1px solid var(--ex-abby-color-warning);
+        border-radius: 4px;
+        color: var(--ex-abby-color-warning);
+        font-size: 0.875rem;
+      }
 
-    .archive-button:hover {
-      background-color: #b91c1c;
-    }
+      @media (max-width: 960px) {
+        .ex-abby-admin .ex-abby-show__header,
+        .ex-abby-admin .date-filter form {
+          flex-direction: column;
+        }
 
-    .weight-input:disabled {
-      background-color: #f3f4f6;
-      cursor: not-allowed;
-    }
+        .ex-abby-admin .date-filter {
+          width: 100%;
+        }
 
-    .p-value-significant {
-      color: #047857;
-      font-weight: bold;
-    }
+        .ex-abby-admin .date-filter form {
+          align-items: stretch;
+        }
 
-    .p-value-unavailable {
-      color: #64748b;
-      font-size: 0.875rem;
-    }
-
-    .p-value-detail {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      margin-top: 4px;
-      color: #64748b;
-      font-size: 0.75rem;
-      font-weight: normal;
-      white-space: nowrap;
-    }
-
-    .sig-chart {
-      flex: none;
-    }
-
-    .sig-chart-zero {
-      stroke: #cbd5e1;
-      stroke-width: 1;
-    }
-
-    .sig-chart-range {
-      stroke: #94a3b8;
-      stroke-width: 2;
-      stroke-linecap: round;
-    }
-
-    .sig-chart-point {
-      fill: #64748b;
-    }
-
-    .sig-chart-significant .sig-chart-range {
-      stroke: #047857;
-    }
-
-    .sig-chart-significant .sig-chart-point {
-      fill: #047857;
-    }
-
-    .significance-note {
-      margin-top: 12px;
-      color: #475569;
-      font-size: 0.875rem;
-    }
-
-    .significance-warning {
-      margin-top: 12px;
-      padding: 12px;
-      background-color: #fef3c7;
-      border: 1px solid #f59e0b;
-      border-radius: 4px;
-      color: #92400e;
-      font-size: 0.875rem;
-    }
+        .ex-abby-admin .date-filter input {
+          width: 100%;
+        }
+      }
     </style>
 
-    <div class="container">
-      <.link patch={"index"} class="back-button">← Back to Experiments</.link>
+    <div class="ex-abby-admin">
+      <main class="ex-abby-admin__shell">
+        <.link
+          navigate={"index"}
+          class="ex-abby-button ex-abby-button--secondary ex-abby-show__back"
+        >
+          ← Back to Experiments
+        </.link>
 
-      <div class="header">
-        <div class="title-section">
-          <h2><%= @experiment.name %></h2>
-          <p><%= @experiment.description %></p>
-        </div>
+        <header class="ex-abby-show__header">
+          <div>
+            <h1 class="ex-abby-admin__title"><%= @experiment.name %></h1>
+            <p class="ex-abby-admin__subtitle"><%= @experiment.description %></p>
+          </div>
 
-        <div class="date-filter">
-          <form phx-submit="update_date_range">
-            <div>
-              <label>From</label>
-              <input type="text" name="start_time" value={@start_time} placeholder="e.g., 7 days ago or 11/15/2025 3PM" />
+          <div class="date-filter ex-abby-panel">
+            <form phx-submit="update_date_range">
+              <div>
+                <label for="ex-abby-start-time" class="ex-abby-label">From</label>
+                <input
+                  id="ex-abby-start-time"
+                  class="ex-abby-input"
+                  type="text"
+                  name="start_time"
+                  value={@start_time}
+                  placeholder="e.g., 7 days ago"
+                />
+              </div>
+              <div>
+                <label for="ex-abby-end-time" class="ex-abby-label">To</label>
+                <input
+                  id="ex-abby-end-time"
+                  class="ex-abby-input"
+                  type="text"
+                  name="end_time"
+                  value={@end_time}
+                  placeholder="e.g., now"
+                />
+              </div>
+              <button type="submit" class="ex-abby-button ex-abby-button--primary">
+                Update Range
+              </button>
+            </form>
+            <%= if @from_to_error_message do %>
+              <div class="error-message">
+                <%= @from_to_error_message %>
+              </div>
+            <% end %>
+          </div>
+        </header>
+
+        <form phx-submit="save_weights">
+          <div class="ex-abby-table-frame">
+            <table class="ex-abby-table">
+              <thead>
+                <tr>
+                  <th>Weight</th>
+                  <th>Variation</th>
+                  <th>Trials</th>
+                  <th>{@experiment.success1_label || "Success"}<br />(Total / Unique)</th>
+                  <th>{@experiment.success1_label || "Success"}<br />Amount</th>
+                  <th>{@experiment.success1_label || "Success"}<br />Rate</th>
+                  <th>P vs <%= @control_variation_name %></th>
+                  <%= if show_success2?(@experiment, @summary) do %>
+                    <th>{@experiment.success2_label}<br />(Total / Unique)</th>
+                    <th>{@experiment.success2_label}<br />Amount</th>
+                    <th>{@experiment.success2_label}<br />Rate</th>
+                    <th>P vs <%= @control_variation_name %></th>
+                  <% end %>
+                </tr>
+              </thead>
+
+              <tbody>
+                <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+                  <tr>
+                    <td>
+                      <input
+                        type="number"
+                        name={"weights[weight_#{v_id}]"}
+                        value={w}
+                        step="0.01"
+                        min="0"
+                        max="1"
+                        class="ex-abby-input weight-input"
+                        disabled={not is_nil(@experiment.archived_at)}
+                      />
+                    </td>
+                    <td><%= row.variation_name %></td>
+                    <td><%= row.trials %></td>
+                    <td><%= row.success1.count %> (<%= row.success1.unique_count %>)</td>
+                    <td><%= Float.round(row.success1.amount, 2) %></td>
+                    <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
+                    <.significance_td
+                      significance={@success1_significance}
+                      variation_id={row.variation_id}
+                      scale={@success1_scale}
+                    />
+                    <%= if show_success2?(@experiment, @summary) do %>
+                      <td><%= row.success2.count %> (<%= row.success2.unique_count %>)</td>
+                      <td><%= Float.round(row.success2.amount, 2) %></td>
+                      <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
+                      <.significance_td
+                        significance={@success2_significance}
+                        variation_id={row.variation_id}
+                        scale={@success2_scale}
+                      />
+                    <% end %>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <%= unless @experiment.archived_at do %>
+            <button
+              type="submit"
+              class="ex-abby-button ex-abby-button--primary save-button"
+            >
+              Save Weights
+            </button>
+          <% end %>
+        </form>
+
+        <%= case @success1_significance do %>
+          <% {:ok, _significance} -> %>
+            <p class="significance-note">
+              Anytime-valid p-values compare each treatment with
+              <strong><%= @control_variation_name %></strong> using unique conversions in the
+              selected date range. They remain valid during continuous monitoring when the start
+              date and metrics are fixed independently of the results. P-values are Holm-adjusted
+              together across every configured treatment arm and displayed success metric,
+              including any arm with no data yet. Either success metric can be highlighted; both
+              do not need to be significant.
+            </p>
+            <p class="significance-note">
+              The chart plots the measured lift (dot) and its 95% anytime-valid interval (bar)
+              against a zero line. Values are the <strong>difference between the two conversion
+              rates in points</strong>, not a relative change: a control at 20% against a treatment
+              at 30% shows as +10%, not +50%. Negative means the treatment converted worse than
+              control. A bar that crosses the zero line means the data cannot
+              yet rule out "no difference". Intervals are <em>not</em> Holm-adjusted, so with
+              several treatments a bar can clear zero while the adjusted p-value is above 0.05.
+              "No data" means either arm has no eligible trials.
+            </p>
+          <% {:error, :control_not_found} -> %>
+            <p class="significance-warning">
+              Significance is unavailable because this experiment has no variation named
+              <strong><%= @control_variation_name %></strong>.
+            </p>
+        <% end %>
+
+        <%= if @updated? do %>
+          <div class="success-message">
+            Weights updated successfully
+          </div>
+        <% end %>
+
+        <div class="archive-section">
+          <%= if @experiment.archived_at do %>
+            <div class="archived-banner ex-abby-panel">
+              <span class="archived-label">Archived</span>
+              <%= if @winner_variation do %>
+                <span>Winner: <strong>{@winner_variation.name}</strong></span>
+              <% end %>
+              <button
+                phx-click="unarchive"
+                class="ex-abby-button ex-abby-button--secondary unarchive-button"
+              >
+                Unarchive
+              </button>
             </div>
-            <div>
-              <label>To</label>
-              <input type="text" name="end_time" value={@end_time} placeholder="e.g., now or 11/15/2025 3PM" />
-            </div>
-            <button type="submit">Update Range</button>
-          </form>
-          <%= if @from_to_error_message do %>
-            <div class="error-message">
-              <%= @from_to_error_message %>
-            </div>
+          <% else %>
+            <form phx-submit="archive" class="archive-form ex-abby-panel">
+              <label for="ex-abby-winner-variation">Archive with winner (optional):</label>
+              <select id="ex-abby-winner-variation" name="winner_variation_id" class="ex-abby-select">
+                <option value="">No winner</option>
+                <%= for v <- @experiment.variations do %>
+                  <option value={v.id}>{v.name}</option>
+                <% end %>
+              </select>
+              <button type="submit" class="ex-abby-button ex-abby-button--danger">
+                Archive Experiment
+              </button>
+            </form>
           <% end %>
         </div>
-    </div>
-
-      <div class="archive-section">
-        <%= if @experiment.archived_at do %>
-          <div class="archived-banner">
-            <span class="archived-label">Archived</span>
-            <%= if @winner_variation do %>
-              <span>Winner: <strong>{@winner_variation.name}</strong></span>
-            <% end %>
-            <button phx-click="unarchive" class="unarchive-button">Unarchive</button>
-          </div>
-        <% else %>
-          <form phx-submit="archive" class="archive-form">
-            <label>Archive with winner (optional):</label>
-            <select name="winner_variation_id">
-              <option value="">No winner</option>
-              <%= for v <- @experiment.variations do %>
-                <option value={v.id}>{v.name}</option>
-              <% end %>
-            </select>
-            <button type="submit" class="archive-button">Archive Experiment</button>
-          </form>
-        <% end %>
-      </div>
-
-      <form phx-submit="save_weights">
-        <table>
-          <thead>
-            <tr>
-              <th>Weight</th>
-              <th>Variation</th>
-              <th>Trials</th>
-              <th>Excluded</th>
-              <th><%= @experiment.success1_label || "Success" %></th>
-              <th><%= @experiment.success1_label || "Success" %> Unique</th>
-              <th><%= @experiment.success1_label || "Success" %> Amount</th>
-              <th><%= @experiment.success1_label || "Success" %> Rate</th>
-              <th>P vs <%= @control_variation_name %></th>
-              <%= if show_success2?(@experiment, @summary) do %>
-                <th><%= @experiment.success2_label %></th>
-                <th><%= @experiment.success2_label %> Unique</th>
-                <th><%= @experiment.success2_label %> Amount</th>
-                <th><%= @experiment.success2_label %> Rate</th>
-                <th>P vs <%= @control_variation_name %></th>
-              <% end %>
-            </tr>
-          </thead>
-
-          <tbody>
-            <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
-              <tr>
-                <td>
-                  <input type="number"
-                    name={"weights[weight_#{v_id}]"}
-                    value={w}
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    class="weight-input"
-                    disabled={not is_nil(@experiment.archived_at)}
-                  />
-                </td>
-                <td><%= row.variation_name %></td>
-                <td><%= row.trials %></td>
-                <td><%= row.excluded_trials %></td>
-                <td><%= row.success1.count %></td>
-                <td><%= row.success1.unique_count %></td>
-                <td><%= Float.round(row.success1.amount, 2) %></td>
-                <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
-                <.significance_td
-                  significance={@success1_significance}
-                  variation_id={row.variation_id}
-                  scale={@success1_scale}
-                />
-                <%= if show_success2?(@experiment, @summary) do %>
-                  <td><%= row.success2.count %></td>
-                  <td><%= row.success2.unique_count %></td>
-                  <td><%= Float.round(row.success2.amount, 2) %></td>
-                  <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
-                  <.significance_td
-                    significance={@success2_significance}
-                    variation_id={row.variation_id}
-                    scale={@success2_scale}
-                  />
-                <% end %>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-
-        <%= unless @experiment.archived_at do %>
-          <button type="submit" class="save-button">Save Weights</button>
-        <% end %>
-      </form>
-
-      <%= case @success1_significance do %>
-        <% {:ok, _significance} -> %>
-          <p class="significance-note">
-            Anytime-valid p-values compare each treatment with
-            <strong><%= @control_variation_name %></strong> using unique conversions in the
-            selected date range. They remain valid during continuous monitoring when the start
-            date and metrics are fixed independently of the results. P-values are Holm-adjusted
-            together across every configured treatment arm and displayed success metric,
-            including any arm with no data yet. Either success metric can be highlighted; both
-            do not need to be significant.
-          </p>
-          <p class="significance-note">
-            The chart plots the measured lift (dot) and its 95% anytime-valid interval (bar)
-            against a zero line. Values are the <strong>difference between the two conversion
-            rates in points</strong>, not a relative change: a control at 20% against a treatment
-            at 30% shows as +10%, not +50%. Negative means the treatment converted worse than
-            control. A bar that crosses the zero line means the data cannot
-            yet rule out "no difference". Intervals are <em>not</em> Holm-adjusted, so with
-            several treatments a bar can clear zero while the adjusted p-value is above 0.05.
-            "No data" means either arm has no eligible trials.
-          </p>
-        <% {:error, :control_not_found} -> %>
-          <p class="significance-warning">
-            Significance is unavailable because this experiment has no variation named
-            <strong><%= @control_variation_name %></strong>.
-          </p>
-      <% end %>
-
-      <%= if @updated? do %>
-        <div class="success-message">
-          Weights updated successfully
-        </div>
-      <% end %>
-
-
-
+      </main>
     </div>
     """
   end
