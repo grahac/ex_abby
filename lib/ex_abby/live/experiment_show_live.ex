@@ -227,7 +227,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
     <div class="ex-abby-admin">
       <main class="ex-abby-admin__shell">
         <.link
-          patch={"index"}
+          navigate={"index"}
           class="ex-abby-button ex-abby-button--secondary ex-abby-show__back"
         >
           ← Back to Experiments

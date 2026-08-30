@@ -79,7 +79,10 @@ defmodule ExAbby.AdminStyleTest do
     assert show_html =~ "ex-abby-table-frame"
     assert show_html =~ "4 (3)"
     assert show_html =~ ~s(name="weights[weight_1]")
+    assert show_html =~ ~s(data-phx-link="redirect")
     assert trials_html =~ "ex-abby-panel"
+    assert trials_html =~ ~s(data-phx-link="redirect")
+    assert trials_html =~ ~s(aria-expanded="true")
   end
 
   defp render(component, assigns) do

@@ -225,7 +225,7 @@ defmodule ExAbby.Live.TrialManagementLive do
         <div class="sections-wrapper">
           <.link
             :if={!@standalone}
-            patch={"index"}
+            navigate={"index"}
             class="ex-abby-button ex-abby-button--secondary trial-page__back"
           >
             ← Back to Experiments
@@ -255,6 +255,7 @@ defmodule ExAbby.Live.TrialManagementLive do
           class="toggle-button"
           phx-click="toggle-user-trials"
           aria-label="Toggle user trials"
+          aria-expanded={to_string(@user_trials_expanded)}
         >
           <%= if @user_trials_expanded, do: "▼", else: "▶" %>
         </button>
@@ -298,6 +299,7 @@ defmodule ExAbby.Live.TrialManagementLive do
           class="toggle-button"
           phx-click="toggle-session-trials"
           aria-label="Toggle session trials"
+          aria-expanded={to_string(@session_trials_expanded)}
         >
           <%= if @session_trials_expanded, do: "▼", else: "▶" %>
         </button>
