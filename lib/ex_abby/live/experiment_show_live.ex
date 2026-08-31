@@ -297,13 +297,13 @@ defmodule ExAbby.Live.ExperimentShowLive do
               </thead>
 
               <tbody>
-                <%= for {row, {v_id, _name, w}} <- Enum.zip(@summary, @weights_form) do %>
+                <%= for row <- @summary do %>
                   <tr>
                     <td>
                       <input
                         type="number"
-                        name={"weights[weight_#{v_id}]"}
-                        value={w}
+                        name={"weights[weight_#{row.variation_id}]"}
+                        value={Map.fetch!(@weights_by_variation_id, row.variation_id)}
                         step="0.01"
                         min="0"
                         max="1"
@@ -493,7 +493,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
     experiment = Experiments.get_experiment_by_id(id)
 
     if experiment do
-      summary = Experiments.experiment_summary(experiment.name)
+      summary = Experiments.experiment_summary(experiment)
 
       control_variation_name =
         Application.get_env(:ex_abby, :control_variation_name, "control")
@@ -530,7 +530,10 @@ defmodule ExAbby.Live.ExperimentShowLive do
       |> assign(:experiment, experiment)
       |> assign(:summary, summary)
       |> assign(:updated?, false)
-      |> assign(:weights_form, build_weights_form(experiment.variations))
+      |> assign(
+        :weights_by_variation_id,
+        Map.new(experiment.variations, &{&1.id, &1.weight})
+      )
       |> assign(:winner_variation, winner_variation)
       |> assign(:control_variation_name, control_variation_name)
       |> assign(:success1_significance, success1_significance)
@@ -546,10 +549,6 @@ defmodule ExAbby.Live.ExperimentShowLive do
     has_label = experiment.success2_label && experiment.success2_label != ""
     has_conversions = Enum.any?(summary, fn row -> row.success2.count > 0 end)
     has_label || has_conversions
-  end
-
-  defp build_weights_form(variations) do
-    for v <- variations, do: {v.id, v.name, v.weight}
   end
 
   # One dispatch for the whole cell: which arm this row is, and what to draw.

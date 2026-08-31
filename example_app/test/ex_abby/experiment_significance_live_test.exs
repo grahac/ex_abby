@@ -4,7 +4,8 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
-  alias ExAbby.{Experiments, Trial, Variation}
+  alias ExAbby.Live.ExperimentShowLive
+  alias ExAbby.{Experiment, Experiments, Trial, Variation}
   alias ExampleApp.Repo
 
   test "shows anytime-valid p-values and lift sequences for each treatment versus control", %{
@@ -113,6 +114,55 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
     assert html =~ "do not need to be significant."
   end
 
+  test "matches each summary row to its weight by variation id" do
+    control = %Variation{id: 10, name: "control", weight: 0.8}
+    treatment = %Variation{id: 20, name: "treatment", weight: 0.2}
+
+    html =
+      render_component(&ExperimentShowLive.render/1,
+        experiment: %Experiment{
+          id: 1,
+          name: "weight_rows",
+          description: "Weight row association",
+          success1_label: "Signup",
+          variations: [treatment, control]
+        },
+        start_time: nil,
+        end_time: nil,
+        from_to_error_message: nil,
+        winner_variation: nil,
+        summary: [summary_row(control), summary_row(treatment)],
+        weights_by_variation_id: %{control.id => control.weight, treatment.id => treatment.weight},
+        control_variation_name: "control",
+        success1_significance: {:error, :control_not_found},
+        success2_significance: nil,
+        success1_scale: nil,
+        success2_scale: nil,
+        updated?: false
+      )
+
+    [control_row, treatment_row] =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find("tbody tr")
+
+    assert row_variation(control_row) == "control"
+
+    assert Floki.attribute(control_row, "input.weight-input", "name") == [
+             "weights[weight_#{control.id}]"
+           ]
+
+    assert Floki.attribute(control_row, "input.weight-input", "value") == ["0.8"]
+
+    assert row_variation(treatment_row) == "treatment"
+
+    assert Floki.attribute(treatment_row, "input.weight-input", "name") == [
+             "weights[weight_#{treatment.id}]"
+           ]
+
+    assert Floki.attribute(treatment_row, "input.weight-input", "value") == ["0.2"]
+  end
+
   defp insert_trials(
          experiment,
          variation_name,
@@ -149,5 +199,24 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
       end
 
     assert {^count, nil} = Repo.insert_all(Trial, rows)
+  end
+
+  defp summary_row(variation) do
+    %{
+      variation_id: variation.id,
+      variation_name: variation.name,
+      trials: 0,
+      excluded_trials: 0,
+      success1: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0},
+      success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0}
+    }
+  end
+
+  defp row_variation(row) do
+    row
+    |> Floki.find("td")
+    |> Enum.at(1)
+    |> Floki.text()
+    |> String.trim()
   end
 end

@@ -50,7 +50,7 @@ defmodule ExAbby.AdminStyleTest do
             success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0}
           }
         ],
-        weights_form: [{1, "control", 0.5}],
+        weights_by_variation_id: %{1 => 0.5},
         control_variation_name: "control",
         success1_significance: {:error, :control_not_found},
         success2_significance: nil,

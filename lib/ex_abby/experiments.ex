@@ -564,7 +564,7 @@ defmodule ExAbby.Experiments do
   end
 
   @doc """
-  Returns a summary of results for a given experiment:
+  Returns a summary of results for a given experiment (by name or struct):
   variations, total trials, and details for both success types including counts, amounts, and rates.
 
   Example output:
@@ -588,123 +588,91 @@ defmodule ExAbby.Experiments do
     }, ...
   ]
   """
-  def experiment_summary(experiment_name) do
-    experiment = get_experiment_by_name(experiment_name)
-
-    if experiment do
-      start_datetime =
-        case ExAbby.DatetimeParser.parse(experiment.start_time) do
-          {:ok, datetime} -> datetime
-          _ -> nil
-        end
-
-      end_datetime =
-        case ExAbby.DatetimeParser.parse(experiment.end_time) do
-          {:ok, datetime} -> datetime
-          _ -> nil
-        end
-
-      variations =
-        repo().all(
-          from(v in Variation,
-            where: v.experiment_id == ^experiment.id,
-            select: v
-          )
-        )
-
-      Enum.map(variations, fn v ->
-        query =
-          from(t in Trial,
-            where: t.variation_id == ^v.id
-          )
-
-        # Add date range filters if present
-        query =
-          if start_datetime do
-            from(t in query, where: t.inserted_at >= ^start_datetime)
-          else
-            query
-          end
-
-        query =
-          if end_datetime do
-            from(t in query, where: t.inserted_at <= ^end_datetime)
-          else
-            query
-          end
-
-        stats =
-          repo().one(
-            from(t in query,
-              select: %{
-                trial_count: filter(count(t.id), is_nil(t.excluded_at)),
-                excluded_trial_count: filter(count(t.id), not is_nil(t.excluded_at)),
-                success1_sum: coalesce(filter(sum(t.success1_count), is_nil(t.excluded_at)), 0),
-                success1_amount:
-                  coalesce(filter(sum(t.success1_amount), is_nil(t.excluded_at)), 0.0),
-                success1_unique:
-                  count(
-                    fragment(
-                      "DISTINCT CASE WHEN ? IS NULL AND ? > 0 THEN ? END",
-                      t.excluded_at,
-                      t.success1_count,
-                      t.id
-                    )
-                  ),
-                success2_sum: coalesce(filter(sum(t.success2_count), is_nil(t.excluded_at)), 0),
-                success2_amount:
-                  coalesce(filter(sum(t.success2_amount), is_nil(t.excluded_at)), 0.0),
-                success2_unique:
-                  count(
-                    fragment(
-                      "DISTINCT CASE WHEN ? IS NULL AND ? > 0 THEN ? END",
-                      t.excluded_at,
-                      t.success2_count,
-                      t.id
-                    )
-                  )
-              }
-            )
-          ) ||
-            %{
-              trial_count: 0,
-              excluded_trial_count: 0,
-              success1_sum: 0,
-              success1_amount: 0.0,
-              success1_unique: 0,
-              success2_sum: 0,
-              success2_amount: 0.0,
-              success2_unique: 0
-            }
-
-        %{
-          variation_id: v.id,
-          variation_name: v.name,
-          trials: stats.trial_count,
-          excluded_trials: stats.excluded_trial_count,
-          success1: %{
-            count: stats.success1_sum,
-            unique_count: stats.success1_unique,
-            amount: stats.success1_amount,
-            rate:
-              if(stats.trial_count > 0, do: stats.success1_unique / stats.trial_count, else: 0.0),
-            amount_per_trial:
-              if(stats.trial_count > 0, do: stats.success1_amount / stats.trial_count, else: 0.0)
-          },
-          success2: %{
-            count: stats.success2_sum,
-            unique_count: stats.success2_unique,
-            amount: stats.success2_amount,
-            rate:
-              if(stats.trial_count > 0, do: stats.success2_unique / stats.trial_count, else: 0.0),
-            amount_per_trial:
-              if(stats.trial_count > 0, do: stats.success2_amount / stats.trial_count, else: 0.0)
-          }
-        }
-      end)
-    else
-      []
+  def experiment_summary(experiment_name) when is_binary(experiment_name) do
+    case get_experiment_by_name(experiment_name) do
+      nil -> []
+      experiment -> experiment_summary(experiment)
     end
+  end
+
+  def experiment_summary(%Experiment{} = experiment) do
+    start_datetime =
+      case ExAbby.DatetimeParser.parse(experiment.start_time) do
+        {:ok, datetime} -> datetime
+        _ -> nil
+      end
+
+    end_datetime =
+      case ExAbby.DatetimeParser.parse(experiment.end_time) do
+        {:ok, datetime} -> datetime
+        _ -> nil
+      end
+
+    join_on = dynamic([v, t], t.variation_id == v.id)
+
+    join_on =
+      if start_datetime do
+        dynamic([v, t], ^join_on and t.inserted_at >= ^start_datetime)
+      else
+        join_on
+      end
+
+    join_on =
+      if end_datetime do
+        dynamic([v, t], ^join_on and t.inserted_at <= ^end_datetime)
+      else
+        join_on
+      end
+
+    rows =
+      repo().all(
+        from(v in Variation,
+          left_join: t in Trial,
+          on: ^join_on,
+          where: v.experiment_id == ^experiment.id,
+          group_by: [v.id, v.name],
+          order_by: v.id,
+          select: %{
+            variation_id: v.id,
+            variation_name: v.name,
+            trial_count: filter(count(t.id), is_nil(t.excluded_at)),
+            excluded_trial_count: filter(count(t.id), not is_nil(t.excluded_at)),
+            success1_sum: coalesce(filter(sum(t.success1_count), is_nil(t.excluded_at)), 0),
+            success1_amount: coalesce(filter(sum(t.success1_amount), is_nil(t.excluded_at)), 0.0),
+            success1_unique: filter(count(t.id), is_nil(t.excluded_at) and t.success1_count > 0),
+            success2_sum: coalesce(filter(sum(t.success2_count), is_nil(t.excluded_at)), 0),
+            success2_amount: coalesce(filter(sum(t.success2_amount), is_nil(t.excluded_at)), 0.0),
+            success2_unique: filter(count(t.id), is_nil(t.excluded_at) and t.success2_count > 0)
+          }
+        )
+      )
+
+    Enum.map(rows, fn stats ->
+      %{
+        variation_id: stats.variation_id,
+        variation_name: stats.variation_name,
+        trials: stats.trial_count,
+        excluded_trials: stats.excluded_trial_count,
+        success1: %{
+          count: stats.success1_sum,
+          unique_count: stats.success1_unique,
+          amount: stats.success1_amount,
+          rate:
+            if(stats.trial_count > 0, do: stats.success1_unique / stats.trial_count, else: 0.0),
+          amount_per_trial:
+            if(stats.trial_count > 0, do: stats.success1_amount / stats.trial_count, else: 0.0)
+        },
+        success2: %{
+          count: stats.success2_sum,
+          unique_count: stats.success2_unique,
+          amount: stats.success2_amount,
+          rate:
+            if(stats.trial_count > 0, do: stats.success2_unique / stats.trial_count, else: 0.0),
+          amount_per_trial:
+            if(stats.trial_count > 0, do: stats.success2_amount / stats.trial_count, else: 0.0)
+        }
+      }
+    end)
   end
 
   @doc """

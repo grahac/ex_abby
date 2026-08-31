@@ -17,6 +17,16 @@ success outcomes used to compare them.
 One allocation arm within an Experiment, representing either the baseline or a
 treatment whose outcomes are measured independently.
 
+### Variation weight
+
+A non-negative relative allocation value that determines how likely a Variation
+is to be selected compared with the other Variations in the same Experiment.
+
+### Trial
+
+A participant's persistent assignment to one Variation within an Experiment,
+carrying that participant's eligibility and measured success outcomes.
+
 ### Control variation
 
 The baseline Variation against which every treatment is compared when ExAbby
