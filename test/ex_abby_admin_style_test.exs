@@ -3,22 +3,21 @@ defmodule ExAbby.AdminStyleTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
-  alias ExAbby.Experiment
+  alias ExAbby.{Experiment, ExperimentReport, Variation}
   alias ExAbby.Live.{AdminStyle, ExperimentIndexLive, ExperimentShowLive, TrialManagementLive}
 
   test "shared admin styles expose the accessible Seline palette as semantic tokens" do
     html = render(&AdminStyle.styles/1, %{})
 
-    assert html =~ "--ex-abby-color-canvas: #fafaf9"
+    assert html =~ "--ex-abby-color-canvas: #f7f6f3"
     assert html =~ "--ex-abby-color-surface: #ffffff"
-    assert html =~ "--ex-abby-color-ink: #0c0a09"
-    assert html =~ "--ex-abby-color-signal-blue: #3ba6f1"
-    assert html =~ "--ex-abby-color-accent: #2563eb"
-    assert html =~ "--ex-abby-color-success: #047857"
-    assert html =~ "--ex-abby-color-warning: #92400e"
-    assert html =~ "--ex-abby-color-danger: #c81e1e"
+    assert html =~ "--ex-abby-color-ink: #191a17"
+    assert html =~ "--ex-abby-color-accent: #12664a"
+    assert html =~ "--ex-abby-color-success: #12664a"
+    assert html =~ "--ex-abby-color-warning: #8a6a18"
+    assert html =~ "--ex-abby-color-danger: #a33a2a"
     assert html =~ ":focus-visible"
-    assert html =~ "outline: 2px solid var(--ex-abby-color-stone-charcoal)"
+    assert html =~ "outline: 2px solid var(--ex-abby-color-ink)"
     assert html =~ "color: var(--ex-abby-color-ink)"
   end
 
@@ -26,36 +25,65 @@ defmodule ExAbby.AdminStyleTest do
     index_html =
       render(&ExperimentIndexLive.render/1, %{
         filter: :active,
-        experiments: []
+        query: "",
+        reports: [],
+        archived: [],
+        counts: %{running: 0, significant: 0, archived: 0},
+        scale: 1.0
       })
 
-    show_html =
-      render(&ExperimentShowLive.render/1, %{
-        experiment: %Experiment{
+    show_report =
+      ExperimentReport.from_summary(
+        %Experiment{
           id: 1,
           name: "Homepage",
           description: "Hero copy",
-          variations: []
+          inserted_at: ~N[2026-08-01 00:00:00],
+          variations: [
+            %Variation{id: 1, name: "control", weight: 0.5},
+            %Variation{id: 2, name: "bold", weight: 0.5}
+          ]
         },
-        start_time: nil,
-        end_time: nil,
-        from_to_error_message: nil,
-        winner_variation: nil,
-        summary: [
+        [
           %{
             variation_id: 1,
             variation_name: "control",
             trials: 12,
-            success1: %{count: 4, unique_count: 3, amount: 12.5, rate: 0.25},
-            success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0}
+            excluded_trials: 0,
+            success1: %{
+              count: 4,
+              unique_count: 3,
+              amount: 12.5,
+              rate: 0.25,
+              amount_per_trial: 1.0
+            },
+            success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0, amount_per_trial: 0.0}
+          },
+          %{
+            variation_id: 2,
+            variation_name: "bold",
+            trials: 12,
+            excluded_trials: 0,
+            success1: %{
+              count: 5,
+              unique_count: 5,
+              amount: 20.0,
+              rate: 0.42,
+              amount_per_trial: 1.0
+            },
+            success2: %{count: 0, unique_count: 0, amount: 0.0, rate: 0.0, amount_per_trial: 0.0}
           }
         ],
-        weights_by_variation_id: %{1 => 0.5},
-        control_variation_name: "control",
-        success1_significance: {:error, :control_not_found},
-        success2_significance: nil,
-        success1_scale: nil,
-        success2_scale: nil,
+        DateTime.utc_now()
+      )
+
+    show_html =
+      render(&ExperimentShowLive.render/1, %{
+        report: show_report,
+        experiment: show_report.experiment,
+        start_time: nil,
+        end_time: nil,
+        from_to_error_message: nil,
         updated?: false
       })
 
@@ -76,9 +104,10 @@ defmodule ExAbby.AdminStyleTest do
     end
 
     assert index_html =~ "ex-abby-table-frame"
-    assert show_html =~ "ex-abby-table-frame"
-    assert show_html =~ "4 (3)"
-    assert show_html =~ "Total / Unique"
+    assert show_html =~ "Allocation"
+    assert show_html =~ "baseline"
+    assert show_html =~ "Σ 1.00"
+    assert show_html =~ "ahead on" or show_html =~ "No significant difference yet."
     assert show_html =~ ~s(name="weights[weight_1]")
     assert show_html =~ ~s(data-phx-link="redirect")
     assert show_html =~ ~s(for="ex-abby-winner-variation")

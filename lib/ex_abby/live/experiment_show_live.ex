@@ -2,8 +2,9 @@ defmodule ExAbby.Live.ExperimentShowLive do
   @moduledoc """
   Shows a single experiment's variations, plus editing of weights.
   """
-  alias ExAbby.{Experiments, Statistics}
+  alias ExAbby.{Experiments, ExperimentReport}
   use Phoenix.LiveView
+  import ExAbby.Live.AdminComponents
 
   def mount(%{"id" => id}, _session, socket) do
     socket = load_experiment(socket, String.to_integer(id))
@@ -14,7 +15,6 @@ defmodule ExAbby.Live.ExperimentShowLive do
        |> assign(:page_title, "ExAbby - #{socket.assigns.experiment.name}")
        |> assign(:start_time, socket.assigns.experiment.start_time)
        |> assign(:end_time, socket.assigns.experiment.end_time)
-       # Add this line
        |> assign(:from_to_error_message, nil)}
     else
       {:ok, push_navigate(socket, to: "/")}
@@ -25,49 +25,133 @@ defmodule ExAbby.Live.ExperimentShowLive do
     ~H"""
     <ExAbby.Live.AdminStyle.styles />
     <style>
-      .ex-abby-admin .ex-abby-show__back {
-        margin-bottom: 1.5rem;
-      }
-
-      .ex-abby-admin .ex-abby-show__header {
+      .ex-abby-admin .ex-abby-show__title-row {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 2rem;
-        margin-bottom: 2rem;
-      }
-
-      .ex-abby-admin .date-filter {
-        flex: none;
-        padding: 1rem;
-      }
-
-      .ex-abby-admin .date-filter form {
-        display: flex;
+        align-items: center;
         gap: 0.75rem;
+        margin-bottom: 0.625rem;
+      }
+
+      .ex-abby-admin .ex-abby-show__title-block {
+        max-width: 36rem;
+      }
+
+      .ex-abby-admin .ex-abby-show__date-panel {
+        flex: none;
+      }
+
+      .ex-abby-admin .ex-abby-show__date-fields {
+        display: flex;
         align-items: flex-end;
+        gap: 0.625rem;
+        flex-wrap: wrap;
       }
 
-      .ex-abby-admin .date-filter input {
-        width: 12.5rem;
+      .ex-abby-admin .ex-abby-show__date-input {
+        width: 11.25rem;
       }
 
-      .ex-abby-admin .weight-input {
-        width: 4rem;
+      .ex-abby-admin .ex-abby-show__date-error {
+        margin-top: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: var(--ex-abby-color-danger-surface);
+        border: 1px solid var(--ex-abby-color-danger);
+        border-radius: 6px;
+        color: var(--ex-abby-color-danger);
+        font-size: 0.8125rem;
       }
 
-      /* Let the many-column results table pack tighter: allow long header
-         labels to wrap onto multiple rows and shrink the header type so each
-         column sizes to its widest word rather than the whole phrase. */
-      .ex-abby-admin .ex-abby-table th {
-        font-size: 0.625rem;
-        white-space: normal;
-        vertical-align: bottom;
-        line-height: 1.25;
+      .ex-abby-admin .ex-abby-show__block {
+        margin-top: 1.5rem;
       }
 
-      .ex-abby-admin .save-button {
-        margin-top: 1rem;
+      .ex-abby-admin .ex-abby-summary {
+        margin-top: 1.75rem;
+        background: var(--ex-abby-color-surface);
+        border: 1px solid var(--ex-abby-color-border);
+        border-radius: 10px;
+        overflow-x: auto;
+      }
+
+      .ex-abby-admin .ex-abby-summary__row {
+        display: flex;
+        min-width: 56.25rem;
+      }
+
+      .ex-abby-admin .ex-abby-summary__headline {
+        flex: 1 1 auto;
+        padding: 1.125rem 1.375rem;
+        border-left: 3px solid var(--ex-abby-color-accent);
+        font-size: 0.9375rem;
+        line-height: 1.45;
+        text-wrap: pretty;
+      }
+
+      .ex-abby-admin .ex-abby-summary__headline--warning {
+        border-left-color: var(--ex-abby-color-warning-accent);
+      }
+
+      .ex-abby-admin .ex-abby-summary__stats {
+        display: flex;
+        border-left: 1px solid var(--ex-abby-color-border-soft);
+      }
+
+      .ex-abby-admin .ex-abby-summary__stat {
+        padding: 1rem 1.375rem;
+        text-align: right;
+        min-width: 6.875rem;
+        border-left: 1px solid var(--ex-abby-color-border-soft);
+      }
+
+      .ex-abby-admin .ex-abby-summary__stat:first-child {
+        border-left: none;
+      }
+
+      .ex-abby-admin .ex-abby-summary__stat-value {
+        margin-top: 0.375rem;
+        font-family: var(--ex-abby-font-mono);
+        font-size: 1.1875rem;
+        font-weight: 500;
+      }
+
+      .ex-abby-admin .ex-abby-summary__stat-value--significant {
+        color: var(--ex-abby-color-accent-deep);
+        font-weight: 600;
+      }
+
+      .ex-abby-admin .ex-abby-show__table-scroll {
+        overflow-x: auto;
+      }
+
+      .ex-abby-admin .ex-abby-show__weight-input {
+        width: 4.5rem;
+        text-align: right;
+      }
+
+      .ex-abby-admin .ex-abby-show__variation {
+        font-family: var(--ex-abby-font-mono);
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .ex-abby-admin .ex-abby-show__variation--leader {
+        font-weight: 700;
+      }
+
+      .ex-abby-admin .ex-abby-table td.ex-abby-show__rate {
+        font-size: 0.9375rem;
+        font-weight: 600;
+      }
+
+      .ex-abby-admin .ex-abby-show__lift-cell {
+        text-align: right;
+        font-size: 0.75rem;
+      }
+
+      .ex-abby-admin .ex-abby-show__footer-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
       }
 
       .ex-abby-admin .success-message {
@@ -83,169 +167,97 @@ defmodule ExAbby.Live.ExperimentShowLive do
         font-weight: 600;
       }
 
-      .ex-abby-admin .date-filter .error-message {
-        margin-top: 0.75rem;
-        padding: 0.75rem 1rem;
-        background: var(--ex-abby-color-danger-surface);
-        border: 1px solid var(--ex-abby-color-danger);
-        border-radius: 4px;
-        color: var(--ex-abby-color-danger);
-        font-size: 0.875rem;
-      }
-
-      .ex-abby-admin .archive-section {
+      .ex-abby-admin .ex-abby-show__methodology {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
         margin-top: 1.5rem;
       }
 
-      .ex-abby-admin .archived-banner,
-      .ex-abby-admin .archive-form {
+      .ex-abby-admin .ex-abby-show__methodology-panel {
+        padding: 1.25rem 1.375rem;
+      }
+
+      .ex-abby-admin .ex-abby-show__methodology-panel .ex-abby-eyebrow {
+        margin-bottom: 0.625rem;
+      }
+
+      .ex-abby-admin .ex-abby-show__methodology-panel p {
+        margin: 0;
+        color: var(--ex-abby-color-ink-soft);
+        font-size: 0.8125rem;
+        line-height: 1.6;
+        text-wrap: pretty;
+      }
+
+      .ex-abby-admin .ex-abby-show__archive-row {
         display: flex;
         align-items: center;
-        gap: 1rem;
-        padding: 1rem;
+        gap: 0.875rem;
+        padding: 1rem 1.25rem;
       }
 
-      .ex-abby-admin .archived-banner {
-        background: var(--ex-abby-color-warning-surface);
-        border-color: var(--ex-abby-color-warning);
-        color: var(--ex-abby-color-warning);
+      .ex-abby-admin .ex-abby-show__archive-title {
+        font-size: 0.8125rem;
+        font-weight: 600;
       }
 
-      .ex-abby-admin .archived-label {
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
+      .ex-abby-admin .ex-abby-show__archive-hint {
+        font-size: 0.8125rem;
+        color: var(--ex-abby-color-ink-muted);
       }
 
-      .ex-abby-admin .unarchive-button {
+      .ex-abby-admin .ex-abby-show__push-right {
         margin-left: auto;
       }
 
-      .ex-abby-admin .archive-form label {
-        color: var(--ex-abby-color-ink-soft);
-        font-size: 0.875rem;
-        font-weight: 500;
-      }
-
-      .ex-abby-admin .weight-input:disabled {
-        background: var(--ex-abby-color-canvas);
-        color: var(--ex-abby-color-ink-soft);
-        cursor: not-allowed;
-      }
-
-      .ex-abby-admin .p-value-significant {
-        color: var(--ex-abby-color-success);
-        font-weight: 700;
-      }
-
-      .ex-abby-admin .p-value-unavailable,
-      .ex-abby-admin .p-value-detail {
-        color: var(--ex-abby-color-ink-soft);
-      }
-
-      .ex-abby-admin .p-value-unavailable {
-        font-size: 0.875rem;
-      }
-
-      .ex-abby-admin .p-value-detail {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 2px;
-        margin-top: 4px;
-        font-size: 0.75rem;
-        font-weight: 400;
-        white-space: nowrap;
-      }
-
-      .ex-abby-admin .sig-chart {
-        flex: none;
-      }
-
-      .ex-abby-admin .sig-chart-zero {
-        stroke: var(--ex-abby-color-border-strong);
-        stroke-width: 1;
-      }
-
-      .ex-abby-admin .sig-chart-range {
-        stroke: var(--ex-abby-color-warm-slate);
-        stroke-width: 2;
-        stroke-linecap: round;
-      }
-
-      .ex-abby-admin .sig-chart-point {
-        fill: var(--ex-abby-color-warm-slate);
-      }
-
-      .ex-abby-admin .sig-chart-significant .sig-chart-range {
-        stroke: var(--ex-abby-color-success);
-      }
-
-      .ex-abby-admin .sig-chart-significant .sig-chart-point {
-        fill: var(--ex-abby-color-success);
-      }
-
-      .ex-abby-admin .significance-note {
-        max-width: 60rem;
-        margin: 0.75rem 0 0;
-        color: var(--ex-abby-color-ink-soft);
-        font-size: 0.875rem;
-        line-height: 1.6;
-      }
-
-      .ex-abby-admin .significance-warning {
-        margin-top: 0.75rem;
-        padding: 0.875rem 1rem;
-        background: var(--ex-abby-color-warning-surface);
-        border: 1px solid var(--ex-abby-color-warning);
-        border-radius: 4px;
-        color: var(--ex-abby-color-warning);
-        font-size: 0.875rem;
-      }
-
-      @media (max-width: 960px) {
-        .ex-abby-admin .ex-abby-show__header,
-        .ex-abby-admin .date-filter form {
-          flex-direction: column;
+      @media (max-width: 760px) {
+        .ex-abby-admin .ex-abby-show__methodology {
+          grid-template-columns: 1fr;
         }
 
-        .ex-abby-admin .date-filter {
-          width: 100%;
-        }
-
-        .ex-abby-admin .date-filter form {
-          align-items: stretch;
-        }
-
-        .ex-abby-admin .date-filter input {
+        .ex-abby-admin .ex-abby-show__date-input {
           width: 100%;
         }
       }
     </style>
 
     <div class="ex-abby-admin">
-      <main class="ex-abby-admin__shell">
-        <.link
-          navigate={"index"}
-          class="ex-abby-button ex-abby-button--secondary ex-abby-show__back"
-        >
-          ← Back to Experiments
-        </.link>
+      <.topbar>
+        <:crumbs>
+          <.link navigate="index">← Experiments</.link>
+          <span class="ex-abby-topbar__separator">/</span>
+          <span class="ex-abby-topbar__current">{@experiment.name}</span>
+        </:crumbs>
+        <:actions>
+          <.link navigate="trials" class="ex-abby-topbar__link">Edit trials for session</.link>
+          <a
+            :if={!archived?(@report)}
+            href="#ex-abby-archive"
+            class="ex-abby-button ex-abby-button--secondary"
+          >
+            Archive…
+          </a>
+        </:actions>
+      </.topbar>
 
-        <header class="ex-abby-show__header">
-          <div>
-            <h1 class="ex-abby-admin__title"><%= @experiment.name %></h1>
-            <p class="ex-abby-admin__subtitle"><%= @experiment.description %></p>
+      <main class="ex-abby-admin__shell">
+        <header class="ex-abby-admin__header">
+          <div class="ex-abby-show__title-block">
+            <div class="ex-abby-show__title-row">
+              <h1 class="ex-abby-admin__title ex-abby-mono">{@experiment.name}</h1>
+              <.status_pill experiment={@experiment} />
+            </div>
+            <p class="ex-abby-admin__subtitle">{@experiment.description}</p>
           </div>
 
-          <div class="date-filter ex-abby-panel">
-            <form phx-submit="update_date_range">
+          <div class="ex-abby-show__date-panel">
+            <form phx-submit="update_date_range" class="ex-abby-show__date-fields">
               <div>
                 <label for="ex-abby-start-time" class="ex-abby-label">From</label>
                 <input
                   id="ex-abby-start-time"
-                  class="ex-abby-input"
+                  class="ex-abby-input ex-abby-show__date-input"
                   type="text"
                   name="start_time"
                   value={@start_time}
@@ -256,7 +268,7 @@ defmodule ExAbby.Live.ExperimentShowLive do
                 <label for="ex-abby-end-time" class="ex-abby-label">To</label>
                 <input
                   id="ex-abby-end-time"
-                  class="ex-abby-input"
+                  class="ex-abby-input ex-abby-show__date-input"
                   type="text"
                   name="end_time"
                   value={@end_time}
@@ -264,153 +276,306 @@ defmodule ExAbby.Live.ExperimentShowLive do
                 />
               </div>
               <button type="submit" class="ex-abby-button ex-abby-button--primary">
-                Update Range
+                Update range
               </button>
             </form>
-            <%= if @from_to_error_message do %>
-              <div class="error-message">
-                <%= @from_to_error_message %>
-              </div>
-            <% end %>
+            <div :if={@from_to_error_message} class="ex-abby-show__date-error">
+              {@from_to_error_message}
+            </div>
           </div>
         </header>
 
-        <form phx-submit="save_weights">
-          <div class="ex-abby-table-frame">
-            <table class="ex-abby-table">
-              <thead>
-                <tr>
-                  <th>Weight</th>
-                  <th>Variation</th>
-                  <th>Trials</th>
-                  <th>{@experiment.success1_label || "Success"}<br />(Total / Unique)</th>
-                  <th>{@experiment.success1_label || "Success"}<br />Amount</th>
-                  <th>{@experiment.success1_label || "Success"}<br />Rate</th>
-                  <th>P vs <%= @control_variation_name %></th>
-                  <%= if show_success2?(@experiment, @summary) do %>
-                    <th>{@experiment.success2_label}<br />(Total / Unique)</th>
-                    <th>{@experiment.success2_label}<br />Amount</th>
-                    <th>{@experiment.success2_label}<br />Rate</th>
-                    <th>P vs <%= @control_variation_name %></th>
-                  <% end %>
-                </tr>
-              </thead>
+        <.summary_strip report={@report} />
 
-              <tbody>
-                <%= for row <- @summary do %>
-                  <tr>
-                    <td>
-                      <input
-                        type="number"
-                        name={"weights[weight_#{row.variation_id}]"}
-                        value={Map.fetch!(@weights_by_variation_id, row.variation_id)}
-                        step="0.01"
-                        min="0"
-                        max="1"
-                        class="ex-abby-input weight-input"
-                        disabled={not is_nil(@experiment.archived_at)}
-                      />
-                    </td>
-                    <td><%= row.variation_name %></td>
-                    <td><%= row.trials %></td>
-                    <td><%= row.success1.count %> (<%= row.success1.unique_count %>)</td>
-                    <td><%= Float.round(row.success1.amount, 2) %></td>
-                    <td><%= Float.round(row.success1.rate * 100, 2) %>%</td>
-                    <.significance_td
-                      significance={@success1_significance}
-                      variation_id={row.variation_id}
-                      scale={@success1_scale}
-                    />
-                    <%= if show_success2?(@experiment, @summary) do %>
-                      <td><%= row.success2.count %> (<%= row.success2.unique_count %>)</td>
-                      <td><%= Float.round(row.success2.amount, 2) %></td>
-                      <td><%= Float.round(row.success2.rate * 100, 2) %>%</td>
-                      <.significance_td
-                        significance={@success2_significance}
-                        variation_id={row.variation_id}
-                        scale={@success2_scale}
-                      />
-                    <% end %>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+        <.allocation_table report={@report} />
+        <div :if={@updated?} class="success-message">Weights updated successfully</div>
+
+        <.metric_panel :for={metric <- @report.metrics} report={@report} metric={metric} />
+
+        <div class="ex-abby-show__methodology">
+          <div class="ex-abby-panel ex-abby-show__methodology-panel">
+            <span class="ex-abby-eyebrow">How the p-values work</span>
+            <p>
+              Anytime-valid p-values compare each treatment with
+              <span class="ex-abby-mono">{@report.control_variation_name}</span>
+              using unique conversions in the selected date range. They stay valid under
+              continuous monitoring as long as the start date and metrics were fixed
+              independently of the results. P-values are Holm-adjusted across every treatment
+              arm and displayed metric, including arms with no data yet. Either metric can be
+              significant on its own.
+            </p>
           </div>
+          <div class="ex-abby-panel ex-abby-show__methodology-panel">
+            <span class="ex-abby-eyebrow">How to read the lift bar</span>
+            <p>
+              In the allocation table, the dot is the measured lift and the bar is its 95%
+              anytime-valid interval against a zero line. Values are the difference between two
+              conversion rates <strong>in points</strong>, not a relative change — 20% against
+              30% reads as +10, not +50%. A bar crossing the zero line means "no difference" is
+              still on the table. Intervals are <em>not</em> Holm-adjusted, so a bar can clear
+              zero while the adjusted p-value sits above 0.05. "No data" means either arm has no
+              eligible trials.
+            </p>
+          </div>
+        </div>
 
-          <%= unless @experiment.archived_at do %>
+        <div id="ex-abby-archive" class="ex-abby-show__block">
+          <div :if={archived?(@report)} class="ex-abby-panel ex-abby-show__archive-row">
+            <.status_pill experiment={@experiment} />
+            <span :if={winner_variation(@experiment)}>
+              Winner: <span class="ex-abby-mono">{winner_variation(@experiment).name}</span>
+            </span>
+            <button
+              phx-click="unarchive"
+              class="ex-abby-button ex-abby-button--secondary ex-abby-show__push-right"
+            >
+              Unarchive
+            </button>
+          </div>
+          <form
+            :if={!archived?(@report)}
+            phx-submit="archive"
+            class="ex-abby-panel ex-abby-show__archive-row"
+          >
+            <span class="ex-abby-show__archive-title">Archive this experiment</span>
+            <label for="ex-abby-winner-variation" class="ex-abby-show__archive-hint">
+              with winner
+            </label>
+            <select id="ex-abby-winner-variation" name="winner_variation_id" class="ex-abby-select">
+              <option value="">No winner</option>
+              <option :for={v <- @experiment.variations} value={v.id}>{v.name}</option>
+            </select>
             <button
               type="submit"
-              class="ex-abby-button ex-abby-button--primary save-button"
+              class="ex-abby-button ex-abby-button--danger ex-abby-show__push-right"
             >
-              Save Weights
+              Archive experiment
             </button>
-          <% end %>
-        </form>
-
-        <%= case @success1_significance do %>
-          <% {:ok, _significance} -> %>
-            <p class="significance-note">
-              Anytime-valid p-values compare each treatment with
-              <strong><%= @control_variation_name %></strong> using unique conversions in the
-              selected date range. They remain valid during continuous monitoring when the start
-              date and metrics are fixed independently of the results. P-values are Holm-adjusted
-              together across every configured treatment arm and displayed success metric,
-              including any arm with no data yet. Either success metric can be highlighted; both
-              do not need to be significant.
-            </p>
-            <p class="significance-note">
-              The chart plots the measured lift (dot) and its 95% anytime-valid interval (bar)
-              against a zero line. Values are the <strong>difference between the two conversion
-              rates in points</strong>, not a relative change: a control at 20% against a treatment
-              at 30% shows as +10%, not +50%. Negative means the treatment converted worse than
-              control. A bar that crosses the zero line means the data cannot
-              yet rule out "no difference". Intervals are <em>not</em> Holm-adjusted, so with
-              several treatments a bar can clear zero while the adjusted p-value is above 0.05.
-              "No data" means either arm has no eligible trials.
-            </p>
-          <% {:error, :control_not_found} -> %>
-            <p class="significance-warning">
-              Significance is unavailable because this experiment has no variation named
-              <strong><%= @control_variation_name %></strong>.
-            </p>
-        <% end %>
-
-        <%= if @updated? do %>
-          <div class="success-message">
-            Weights updated successfully
-          </div>
-        <% end %>
-
-        <div class="archive-section">
-          <%= if @experiment.archived_at do %>
-            <div class="archived-banner ex-abby-panel">
-              <span class="archived-label">Archived</span>
-              <%= if @winner_variation do %>
-                <span>Winner: <strong>{@winner_variation.name}</strong></span>
-              <% end %>
-              <button
-                phx-click="unarchive"
-                class="ex-abby-button ex-abby-button--secondary unarchive-button"
-              >
-                Unarchive
-              </button>
-            </div>
-          <% else %>
-            <form phx-submit="archive" class="archive-form ex-abby-panel">
-              <label for="ex-abby-winner-variation">Archive with winner (optional):</label>
-              <select id="ex-abby-winner-variation" name="winner_variation_id" class="ex-abby-select">
-                <option value="">No winner</option>
-                <%= for v <- @experiment.variations do %>
-                  <option value={v.id}>{v.name}</option>
-                <% end %>
-              </select>
-              <button type="submit" class="ex-abby-button ex-abby-button--danger">
-                Archive Experiment
-              </button>
-            </form>
-          <% end %>
+          </form>
         </div>
       </main>
+    </div>
+    """
+  end
+
+  attr(:report, :map, required: true)
+
+  defp summary_strip(assigns) do
+    ~H"""
+    <div class="ex-abby-summary">
+      <div class="ex-abby-summary__row">
+        <div class={[
+          "ex-abby-summary__headline",
+          unavailable?(@report) && "ex-abby-summary__headline--warning"
+        ]}>
+          <.winner_headline report={@report} />
+        </div>
+        <div class="ex-abby-summary__stats">
+          <div class="ex-abby-summary__stat">
+            <span class="ex-abby-eyebrow">Trials</span>
+            <div class="ex-abby-summary__stat-value">{format_count(@report.totals.trials)}</div>
+          </div>
+          <div class="ex-abby-summary__stat">
+            <span class="ex-abby-eyebrow">Amount</span>
+            <div class="ex-abby-summary__stat-value">
+              {format_amount(@report.totals.success1.amount + @report.totals.success2.amount)}
+            </div>
+          </div>
+          <div class="ex-abby-summary__stat">
+            <span class="ex-abby-eyebrow">Best p</span>
+            <div class={[
+              "ex-abby-summary__stat-value",
+              best_significant?(@report) && "ex-abby-summary__stat-value--significant"
+            ]}>
+              {best_p_text(@report)}
+            </div>
+          </div>
+          <div class="ex-abby-summary__stat">
+            <span class="ex-abby-eyebrow">Running</span>
+            <div class="ex-abby-summary__stat-value">{@report.running_days}d</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:report, :map, required: true)
+
+  defp winner_headline(assigns) do
+    ~H"""
+    <%= case winner_headline_parts(@report) do %>
+      <% :unavailable -> %>
+        Significance is unavailable: no variation is named
+        <span class="ex-abby-mono">{@report.control_variation_name}</span>.
+      <% :none -> %>
+        No significant difference yet.
+      <% {:single, name, label} -> %>
+        <span class="ex-abby-mono">{name}</span> is ahead on {label}.
+      <% {:both, name} -> %>
+        <span class="ex-abby-mono">{name}</span> is ahead on both metrics.
+      <% {:split, name1, label1, name2, label2} -> %>
+        <span class="ex-abby-mono">{name1}</span> is ahead on {label1};
+        <span class="ex-abby-mono">{name2}</span> is ahead on {label2}.
+    <% end %>
+    """
+  end
+
+  attr(:report, :map, required: true)
+
+  defp allocation_table(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :scales,
+        Map.new(assigns.report.metrics, &{&1, metric_scale(assigns.report, &1)})
+      )
+
+    ~H"""
+    <div class="ex-abby-panel ex-abby-show__block">
+      <div class="ex-abby-panel__header">
+        <span class="ex-abby-eyebrow">Allocation & traffic</span>
+      </div>
+      <form phx-submit="save_weights">
+        <div class="ex-abby-show__table-scroll">
+          <table class="ex-abby-table">
+            <thead>
+              <tr>
+                <th>Weight</th>
+                <th>Variation</th>
+                <th class="ex-abby-num">Trials</th>
+                <%= for metric <- @report.metrics do %>
+                  <th class="ex-abby-num">
+                    {ExperimentReport.metric_label(@report.experiment, metric)} rate
+                  </th>
+                  <th class="ex-abby-num">Lift vs control</th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={row <- @report.summary} class={leader?(@report, row) && "ex-abby-row--leader"}>
+                <td>
+                  <input
+                    type="number"
+                    name={"weights[weight_#{row.variation_id}]"}
+                    value={Map.fetch!(@report.weights_by_variation_id, row.variation_id)}
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    class="ex-abby-input ex-abby-show__weight-input"
+                    disabled={archived?(@report)}
+                  />
+                </td>
+                <td class={[
+                  "ex-abby-show__variation",
+                  leader?(@report, row) && "ex-abby-show__variation--leader"
+                ]}>
+                  {row.variation_name}
+                </td>
+                <td class="ex-abby-num">{format_count(row.trials)}</td>
+                <%= for metric <- @report.metrics do %>
+                  <td class={rate_cell_class(@report, metric, row)}>
+                    {format_rate(Map.fetch!(row, metric).rate)}
+                  </td>
+                  <.lift_cell
+                    comparison={ExperimentReport.comparison(@report, metric, row.variation_id)}
+                    scale={Map.fetch!(@scales, metric)}
+                  />
+                <% end %>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ex-abby-panel__footer">
+          <div class="ex-abby-show__footer-left">
+            <button
+              :if={!archived?(@report)}
+              type="submit"
+              class="ex-abby-button ex-abby-button--primary"
+            >
+              Save weights
+            </button>
+            <span class="ex-abby-mono ex-abby-muted">Σ {weights_sum(@report)}</span>
+          </div>
+          <div>Weights take effect on new assignments. Saving resets the measurement start time.</div>
+        </div>
+      </form>
+    </div>
+    """
+  end
+
+  attr(:comparison, :any, required: true)
+  attr(:scale, :any, default: nil)
+
+  defp lift_cell(assigns) do
+    ~H"""
+    <td class="ex-abby-show__lift-cell">
+      <%= case @comparison do %>
+        <% :control -> %>
+          <span class="ex-abby-muted">baseline</span>
+        <% :no_data -> %>
+          <span class="ex-abby-faint">no data</span>
+        <% :unavailable -> %>
+          <span class="ex-abby-muted">—</span>
+        <% comparison -> %>
+          <div class="ex-abby-lift">
+            <.lift_chart comparison={comparison} scale={@scale} width={104} />
+            <span class={[
+              "ex-abby-lift__label",
+              comparison.significant? && "ex-abby-lift__label--significant"
+            ]}>
+              {format_points(comparison.lift)} · p {format_p(comparison.p_value)}
+            </span>
+          </div>
+      <% end %>
+    </td>
+    """
+  end
+
+  attr(:report, :map, required: true)
+  attr(:metric, :atom, required: true)
+
+  defp metric_panel(assigns) do
+    ~H"""
+    <div class="ex-abby-panel ex-abby-show__block">
+      <div class="ex-abby-panel__header">
+        <h2 class="ex-abby-panel__title">
+          {ExperimentReport.metric_label(@report.experiment, @metric)}
+        </h2>
+        <span class="ex-abby-panel__meta">{metric_meta(@report, @metric)}</span>
+      </div>
+      <table class="ex-abby-table">
+        <thead>
+          <tr>
+            <th>Variation</th>
+            <th class="ex-abby-num">Conv.</th>
+            <th class="ex-abby-num">Unique</th>
+            <th class="ex-abby-num">Amount</th>
+            <th class="ex-abby-num">Rate</th>
+            <th class="ex-abby-num">p</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={row <- @report.summary} class={leader?(@report, row) && "ex-abby-row--leader"}>
+            <td class={[
+              "ex-abby-show__variation",
+              leader?(@report, row) && "ex-abby-show__variation--leader"
+            ]}>
+              {row.variation_name}
+            </td>
+            <td class="ex-abby-num">{format_count(Map.fetch!(row, @metric).count)}</td>
+            <td class="ex-abby-num">{format_count(Map.fetch!(row, @metric).unique_count)}</td>
+            <td class={["ex-abby-num", Map.fetch!(row, @metric).amount == 0 && "ex-abby-muted"]}>
+              {format_amount(Map.fetch!(row, @metric).amount)}
+            </td>
+            <td class="ex-abby-num ex-abby-show__rate">
+              {format_rate(Map.fetch!(row, @metric).rate)}
+            </td>
+            <% cell = metric_p_cell(ExperimentReport.comparison(@report, @metric, row.variation_id)) %>
+            <td class={["ex-abby-num", cell.class]}>{cell.text}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     """
   end
@@ -493,182 +658,112 @@ defmodule ExAbby.Live.ExperimentShowLive do
     experiment = Experiments.get_experiment_by_id(id)
 
     if experiment do
-      summary = Experiments.experiment_summary(experiment)
-
-      control_variation_name =
-        Application.get_env(:ex_abby, :control_variation_name, "control")
-
-      show_success2 = show_success2?(experiment, summary)
-      metrics = if show_success2, do: [:success1, :success2], else: [:success1]
-
-      {success1_significance, success2_significance} =
-        case Statistics.compare_metrics_to_control(summary, metrics,
-               control_name: control_variation_name
-             ) do
-          {:ok, significance_by_metric} ->
-            success1 = {:ok, Map.fetch!(significance_by_metric, :success1)}
-
-            success2 =
-              if show_success2 do
-                {:ok, Map.fetch!(significance_by_metric, :success2)}
-              end
-
-            {success1, success2}
-
-          {:error, _reason} = error ->
-            {error, if(show_success2, do: error)}
-        end
-
-      winner_variation =
-        if experiment.winner_variation_id do
-          Experiments.get_variation(experiment.winner_variation_id)
-        else
-          nil
-        end
+      report = ExperimentReport.build(experiment)
 
       socket
-      |> assign(:experiment, experiment)
-      |> assign(:summary, summary)
+      |> assign(:report, report)
+      |> assign(:experiment, report.experiment)
       |> assign(:updated?, false)
-      |> assign(
-        :weights_by_variation_id,
-        Map.new(experiment.variations, &{&1.id, &1.weight})
-      )
-      |> assign(:winner_variation, winner_variation)
-      |> assign(:control_variation_name, control_variation_name)
-      |> assign(:success1_significance, success1_significance)
-      |> assign(:success2_significance, success2_significance)
-      |> assign(:success1_scale, significance_scale(success1_significance))
-      |> assign(:success2_scale, significance_scale(success2_significance))
     else
       socket
     end
   end
 
-  defp show_success2?(experiment, summary) do
-    has_label = experiment.success2_label && experiment.success2_label != ""
-    has_conversions = Enum.any?(summary, fn row -> row.success2.count > 0 end)
-    has_label || has_conversions
+  defp archived?(%ExperimentReport{experiment: %{archived_at: archived_at}}),
+    do: not is_nil(archived_at)
+
+  defp unavailable?(%ExperimentReport{significance: {:error, :control_not_found}}), do: true
+  defp unavailable?(_report), do: false
+
+  defp best_significant?(%ExperimentReport{best: %{significant?: true}}), do: true
+  defp best_significant?(_report), do: false
+
+  defp best_p_text(%ExperimentReport{best: nil}), do: "—"
+  defp best_p_text(%ExperimentReport{best: best}), do: format_p(best.p_value)
+
+  defp winner_headline_parts(%ExperimentReport{significance: {:error, :control_not_found}}),
+    do: :unavailable
+
+  defp winner_headline_parts(%ExperimentReport{winners: winners, metrics: metrics} = report) do
+    present = for metric <- metrics, name = Map.get(winners, metric), name, do: {metric, name}
+
+    case present do
+      [] ->
+        :none
+
+      [{metric, name}] ->
+        {:single, name, ExperimentReport.metric_label(report.experiment, metric)}
+
+      [{_metric, name}, {_metric2, name}] ->
+        {:both, name}
+
+      [{metric1, name1}, {metric2, name2}] ->
+        {:split, name1, ExperimentReport.metric_label(report.experiment, metric1), name2,
+         ExperimentReport.metric_label(report.experiment, metric2)}
+    end
   end
 
-  # One dispatch for the whole cell: which arm this row is, and what to draw.
-  defp significance_cell({:error, :control_not_found}, _variation_id),
-    do: %{kind: :unavailable, class: "p-value-unavailable", label: "—"}
+  # A shared horizontal scale, in percentage points, for one metric's lift
+  # bars, so every bar in that column is comparable.
+  defp metric_scale(report, metric) do
+    report
+    |> ExperimentReport.ready_comparisons()
+    |> Enum.filter(&(&1.metric == metric))
+    |> ExperimentReport.lift_scale()
+  end
 
-  defp significance_cell(
-         {:ok, %{control_variation_id: control_variation_id}},
-         control_variation_id
+  # The leader is the winning arm of the best metric, which is control when
+  # the best comparison is a significant loss.
+  defp leader?(
+         %ExperimentReport{best: %{significant?: true, metric: metric}, winners: winners},
+         row
        ),
-       do: %{kind: :control, class: nil, label: "Control"}
+       do: Map.fetch!(winners, metric) == row.variation_name
 
-  defp significance_cell({:ok, %{comparisons: comparisons}}, variation_id) do
-    case Map.fetch!(comparisons, variation_id) do
-      %{status: :insufficient_data} ->
-        %{kind: :no_data, class: "p-value-unavailable", label: "No data"}
+  defp leader?(_report, _row), do: false
 
-      %{p_value: p_value, significant?: significant?, lift: lift, confidence_interval: interval} ->
-        %{
-          kind: :comparison,
-          class: if(significant?, do: "p-value-significant"),
-          label: format_p_value(p_value),
-          significant?: significant?,
-          lift: lift,
-          lower: interval.lower,
-          upper: interval.upper
-        }
+  defp rate_cell_class(report, metric, row) do
+    [
+      "ex-abby-num",
+      "ex-abby-show__rate",
+      Map.get(report.winners, metric) == row.variation_name && "ex-abby-significant"
+    ]
+  end
+
+  defp metric_p_cell(:control), do: %{text: "Baseline", class: "ex-abby-muted"}
+  defp metric_p_cell(:no_data), do: %{text: "No data", class: "ex-abby-muted"}
+  defp metric_p_cell(:unavailable), do: %{text: "—", class: "ex-abby-muted"}
+
+  defp metric_p_cell(%{p_value: p_value, significant?: true}),
+    do: %{text: format_p(p_value), class: "ex-abby-significant"}
+
+  defp metric_p_cell(%{p_value: p_value}), do: %{text: format_p(p_value), class: nil}
+
+  defp metric_meta(report, metric) do
+    totals = Map.fetch!(report.totals, metric)
+
+    base =
+      "#{format_count(totals.count)} conversions · #{format_count(totals.unique_count)} unique · significance on unique"
+
+    if totals.amount > 0 do
+      base <> " · #{format_amount(totals.amount)} total amount"
+    else
+      base
     end
   end
 
-  defp format_p_value(p_value) when p_value < 0.001, do: "< 0.001"
-  defp format_p_value(p_value), do: :erlang.float_to_binary(p_value, decimals: 3)
-
-  # A shared horizontal scale for every row in a column, so the bars are
-  # comparable with each other and still use the width once intervals tighten.
-  @scale_steps [1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0]
-
-  defp significance_scale({:ok, %{comparisons: comparisons}}) do
-    bounds =
-      comparisons
-      |> Map.values()
-      |> Enum.filter(&Map.has_key?(&1, :confidence_interval))
-      |> Enum.map(fn %{confidence_interval: interval} ->
-        max(abs(interval.lower), abs(interval.upper)) * 100
-      end)
-
-    case bounds do
-      [] -> nil
-      bounds -> Enum.find(@scale_steps, 100.0, &(&1 >= Enum.max(bounds)))
-    end
+  defp weights_sum(report) do
+    report.weights_by_variation_id
+    |> Map.values()
+    |> Enum.sum()
+    |> Kernel.*(1.0)
+    |> :erlang.float_to_binary(decimals: 2)
   end
 
-  defp significance_scale(_significance), do: nil
+  defp winner_variation(%{winner_variation_id: nil}), do: nil
 
-  attr(:significance, :any, required: true)
-  attr(:variation_id, :integer, required: true)
-  attr(:scale, :any, required: true)
-
-  defp significance_td(assigns) do
-    assigns =
-      assign(assigns, :cell, significance_cell(assigns.significance, assigns.variation_id))
-
-    ~H"""
-    <td class={@cell.class}>
-      <span>{@cell.label}</span>
-      <%= if @cell.kind == :comparison do %>
-        <small class="p-value-detail">
-          <svg
-            class={["sig-chart", @cell.significant? && "sig-chart-significant"]}
-            width="120"
-            height="16"
-            viewBox="0 0 120 16"
-            role="img"
-          >
-            <title>{chart_title(@cell)}</title>
-            <line
-              class="sig-chart-zero"
-              x1={chart_x(0.0, @scale)}
-              y1="1"
-              x2={chart_x(0.0, @scale)}
-              y2="15"
-            />
-            <line
-              class="sig-chart-range"
-              x1={chart_x(@cell.lower, @scale)}
-              y1="8"
-              x2={chart_x(@cell.upper, @scale)}
-              y2="8"
-            />
-            <circle class="sig-chart-point" cx={chart_x(@cell.lift, @scale)} cy="8" r="3" />
-          </svg>
-          <span>
-            {format_percent(@cell.lift)} [{format_percent(@cell.lower)}, {format_percent(@cell.upper)}]
-          </span>
-        </small>
-      <% end %>
-    </td>
-    """
-  end
-
-  defp chart_x(proportion, scale) do
-    points = max(-scale, min(scale, proportion * 100))
-    Float.round(60.0 + points / scale * 58.0, 2)
-  end
-
-  defp chart_title(cell) do
-    "Lift #{format_percent(cell.lift)}; 95% interval " <>
-      "#{format_percent(cell.lower)} to #{format_percent(cell.upper)}"
-  end
-
-  defp format_percent(proportion) do
-    value = Float.round(proportion * 100, 1)
-    formatted = :erlang.float_to_binary(value, decimals: 1)
-
-    cond do
-      value > 0.0 -> "+" <> formatted <> "%"
-      value == 0.0 -> "0.0%"
-      true -> formatted <> "%"
-    end
-  end
+  defp winner_variation(%{winner_variation_id: id, variations: variations}),
+    do: Enum.find(variations, &(&1.id == id))
 
   defp validate_datetime(nil, _field), do: {:ok, nil}
   defp validate_datetime("", _field), do: {:ok, nil}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-01
+
+### Added
+- `ExAbby.ExperimentReport`, a read model that combines experiment summaries with control-relative significance, per-metric winners, totals, running time and a health flag (low traffic, high exclusion rate, skewed split).
+
+### Changed
+- Redesigned the admin experiments list: running/significant/archived counts, name search, a Running/Archived/All filter, the best lift and p-value per experiment on a shared scale, a health column, running days and a recently archived panel.
+- Redesigned the admin experiment results page: breadcrumb top bar, summary strip with a winner headline, an allocation table with per-metric rate and lift-versus-control cells, one panel per success metric, methodology notes and an inline archive row.
+- Shared admin styles now use a warm cream and green palette with Instrument Sans and IBM Plex Mono font stacks.
+
 ## [0.5.0] - 2026-08-30
 
 ### Added
