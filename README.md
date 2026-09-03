@@ -26,6 +26,32 @@ It supports:
 - Control-relative p-values for experiments with multiple treatments
 - Ability to toggle variations by user or session for testing
 
+## Admin dashboard
+
+The admin UI gives you a single view of running experiments, their health, the
+best control-relative result, and recently archived winners. Experiments can
+have one control and multiple treatment variants.
+
+![Experiment dashboard with a significant result, a low-traffic warning, and an archived winner](docs/images/admin-dashboard.png)
+
+Open a multi-variant experiment to see the traffic split, conversion rates,
+effect size, and Holm-adjusted, anytime-valid p-values for each metric.
+
+![Three-variant experiment result detail showing a significant checkout lift](docs/images/experiment-significance.png)
+
+Both screenshots are from the included `example_app` using entirely fabricated
+`readme_*` experiments and trials—no customer or production data. The checkout
+example uses one control and two treatment variants. To reproduce them locally
+after setting up PostgreSQL:
+
+```bash
+cd example_app
+mix deps.get
+mix ecto.migrate
+mix run priv/repo/seeds/readme_screenshot_demo.exs
+mix phx.server
+```
+
 Coming in the future
 - armed bandits
 - optimizations / caching
@@ -39,16 +65,17 @@ Coming in the future
 ## Table of Contents
 1. [Installation](#installation)
 2. [Configuration](#configuration)
-3. [Migrations](#migrations)
-4. [Upgrading from v0.1 to v0.2](#upgrading-from-v01-to-v02)
-5. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
-6. [Session Setup](#session-setup)
-7. [Admin Routes](#admin-routes)
-8. [Usage in Controllers](#usage-in-controllers)
-9. [Usage in LiveView](#usage-in-liveview)
-10. [Linking Sessions to Users](#linking-sessions-to-users)
-11. [Archiving Experiments](#archiving-experiments)
-12. [Troubleshooting](#troubleshooting)
+3. [Admin Dashboard](#admin-dashboard)
+4. [Migrations](#migrations)
+5. [Upgrading from v0.1 to v0.2](#upgrading-from-v01-to-v02)
+6. [Upserting Experiments and Updating Weights](#upserting-experiments-and-updating-weights)
+7. [Session Setup](#session-setup)
+8. [Admin Routes](#admin-routes)
+9. [Usage in Controllers](#usage-in-controllers)
+10. [Usage in LiveView](#usage-in-liveview)
+11. [Linking Sessions to Users](#linking-sessions-to-users)
+12. [Archiving Experiments](#archiving-experiments)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
