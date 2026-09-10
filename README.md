@@ -210,9 +210,26 @@ This adds two new columns to `ex_abby_experiments`:
 
 ---
 
-## Upgrading to trial exclusion fields
+## Upgrading to v0.4.0: trial exclusion fields
 
-Bot-exclusion audit fields are added with the next ExAbby migration:
+If you are upgrading an existing installation to ExAbby v0.4.0 or later,
+create and run a host-application migration for the new trial-exclusion audit
+fields. Fresh installations do not need this separate migration because
+`ExAbby.Migrations.create_tables/0` creates the fields from the start.
+
+1. **Update the dependency** in `mix.exs`:
+
+   ```elixir
+   {:ex_abby, "~> 0.4.0"}
+   ```
+
+2. **Generate a migration**:
+
+   ```bash
+   mix ecto.gen.migration ex_abby_bot_exclusion
+   ```
+
+3. **Add the migration implementation**:
 
 ```elixir
 defmodule MyApp.Repo.Migrations.ExAbbyBotExclusion do
@@ -223,8 +240,14 @@ defmodule MyApp.Repo.Migrations.ExAbbyBotExclusion do
 end
 ```
 
-The migration adds nullable `excluded_at` and `exclusion_reason` fields to
-`ex_abby_trials`; it preserves rows for auditing and restoration.
+4. **Run the migration**:
+
+   ```bash
+   mix ecto.migrate
+   ```
+
+This adds nullable `excluded_at` and `exclusion_reason` fields to
+`ex_abby_trials`; existing rows are preserved for auditing and restoration.
 
 ---
 
