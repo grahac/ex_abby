@@ -5,7 +5,7 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
   import Phoenix.LiveViewTest
 
   alias ExAbby.Live.ExperimentShowLive
-  alias ExAbby.{Experiment, Experiments, Trial, Variation}
+  alias ExAbby.{Experiment, ExperimentReport, Experiments, Trial, Variation}
   alias ExampleApp.Repo
 
   test "shows anytime-valid p-values and lift sequences for each treatment versus control", %{
@@ -25,27 +25,27 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "th", "P vs control")
-    assert has_element?(view, "td", "Control")
-    assert has_element?(view, "td span", "0.110")
-    assert has_element?(view, "td.p-value-significant span", "< 0.001")
+    assert has_element?(view, "th", "Lift vs control")
+    assert has_element?(view, "td.ex-abby-show__variation", "control")
+    assert has_element?(view, "td.ex-abby-num", "0.110")
+    assert has_element?(view, "td.ex-abby-significant", "< 0.001")
 
     assert has_element?(
              view,
-             "td.p-value-significant small span",
-             "+25.0% [+12.9%, +36.5%]"
+             "span.ex-abby-lift__label--significant",
+             "+25.0 · p < 0.001"
            )
 
     assert has_element?(
              view,
-             "td.p-value-significant svg.sig-chart-significant title",
-             "Lift +25.0%; 95% interval +12.9% to +36.5%"
+             "svg.ex-abby-lift__chart--significant title",
+             "lift +25.0 points"
            )
 
     html = render(view)
     assert html =~ "Anytime-valid p-values compare each treatment with"
-    assert html =~ "Negative means the treatment converted worse than"
-    assert html =~ "<strong>control</strong>"
+    assert html =~ "A bar crossing the zero line means"
+    assert has_element?(view, ".ex-abby-show__methodology-panel", "control")
   end
 
   test "warns instead of comparing when no variation matches the configured control name", %{
@@ -64,10 +64,15 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "p.significance-warning")
-    assert render(view) =~ "Significance is unavailable because this experiment has no variation"
-    assert has_element?(view, "td.p-value-unavailable span", "—")
-    refute has_element?(view, "td.p-value-significant")
+    assert has_element?(
+             view,
+             ".ex-abby-summary__headline--warning",
+             "Significance is unavailable"
+           )
+
+    assert render(view) =~ "Significance is unavailable: no variation is named"
+    assert has_element?(view, "td.ex-abby-muted", "—")
+    refute has_element?(view, "td.ex-abby-significant")
   end
 
   test "reports insufficient data for a treatment with no eligible trials", %{conn: conn} do
@@ -84,11 +89,11 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "td.p-value-unavailable span", "No data")
+    assert has_element?(view, "td.ex-abby-muted", "No data")
 
     # The empty arm still consumes a Holm comparison, so treatment_a is adjusted
     # against a family of two rather than one.
-    assert has_element?(view, "td.p-value-significant span", "< 0.001")
+    assert has_element?(view, "td.ex-abby-significant", "< 0.001")
   end
 
   test "jointly corrects both success metrics while allowing either one to win", %{conn: conn} do
@@ -106,61 +111,62 @@ defmodule ExampleApp.ExperimentSignificanceLiveTest do
 
     {:ok, view, _html} = live(conn, "/admin/ex_abby/#{experiment.id}")
 
-    assert has_element?(view, "td.p-value-significant span", "0.025")
-    assert has_element?(view, "td span", "1.000")
+    assert has_element?(view, "td.ex-abby-significant", "0.025")
+    assert has_element?(view, "td", "1.000")
 
-    html = render(view)
-    assert html =~ "Either success metric can be highlighted; both"
-    assert html =~ "do not need to be significant."
+    assert has_element?(view, ".ex-abby-show__methodology-panel", "Either metric")
   end
 
   test "matches each summary row to its weight by variation id" do
     control = %Variation{id: 10, name: "control", weight: 0.8}
     treatment = %Variation{id: 20, name: "treatment", weight: 0.2}
 
+    experiment = %Experiment{
+      id: 1,
+      name: "weight_rows",
+      description: "Weight row association",
+      inserted_at: ~N[2026-09-10 00:00:00],
+      success1_label: "Signup",
+      variations: [treatment, control]
+    }
+
+    report =
+      ExperimentReport.from_summary(
+        experiment,
+        [summary_row(control), summary_row(treatment)],
+        ~U[2026-09-10 00:00:00Z]
+      )
+
     html =
       render_component(&ExperimentShowLive.render/1,
-        experiment: %Experiment{
-          id: 1,
-          name: "weight_rows",
-          description: "Weight row association",
-          success1_label: "Signup",
-          variations: [treatment, control]
-        },
+        report: report,
+        experiment: report.experiment,
         start_time: nil,
         end_time: nil,
         from_to_error_message: nil,
-        winner_variation: nil,
-        summary: [summary_row(control), summary_row(treatment)],
-        weights_by_variation_id: %{control.id => control.weight, treatment.id => treatment.weight},
-        control_variation_name: "control",
-        success1_significance: {:error, :control_not_found},
-        success2_significance: nil,
-        success1_scale: nil,
-        success2_scale: nil,
         updated?: false
       )
 
     [control_row, treatment_row] =
       html
       |> Floki.parse_fragment!()
-      |> Floki.find("tbody tr")
+      |> Floki.find("form table tbody tr")
 
     assert row_variation(control_row) == "control"
 
-    assert Floki.attribute(control_row, "input.weight-input", "name") == [
+    assert Floki.attribute(control_row, "input.ex-abby-show__weight-input", "name") == [
              "weights[weight_#{control.id}]"
            ]
 
-    assert Floki.attribute(control_row, "input.weight-input", "value") == ["0.8"]
+    assert Floki.attribute(control_row, "input.ex-abby-show__weight-input", "value") == ["0.8"]
 
     assert row_variation(treatment_row) == "treatment"
 
-    assert Floki.attribute(treatment_row, "input.weight-input", "name") == [
+    assert Floki.attribute(treatment_row, "input.ex-abby-show__weight-input", "name") == [
              "weights[weight_#{treatment.id}]"
            ]
 
-    assert Floki.attribute(treatment_row, "input.weight-input", "value") == ["0.2"]
+    assert Floki.attribute(treatment_row, "input.ex-abby-show__weight-input", "value") == ["0.2"]
   end
 
   defp insert_trials(

@@ -23,7 +23,7 @@ defmodule ExampleAppWeb.ButtonTest.ButtonTestController do
   end
 
   def convert(conn, _params) do
-    case ExAbby.record_successes(conn,  ["landing_page_test", "button_color_test"]) do
+    case ExAbby.record_successes(conn, ["landing_page_test", "button_color_test"]) do
       {:ok, _trial} ->
         conn
         |> put_flash(:info, "Conversion recorded!")
