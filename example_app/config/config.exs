@@ -46,7 +46,6 @@ config :esbuild,
 
 config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 
-
 # Configure tailwind (the version is required)
 config :tailwind,
   version: "3.4.3",
