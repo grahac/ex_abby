@@ -5,6 +5,8 @@ on:
     paths:
       - "mix.exs"
       - "mix.lock"
+      - "example_app/mix.exs"
+      - "example_app/mix.lock"
       - ".github/workflows/hex-audit.yml"
   schedule:
     - cron: "23 11 * * 1"
@@ -14,9 +16,9 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  root:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -30,3 +32,20 @@ jobs:
       # stops being read.
       - run: mix deps.get
       - run: mix hex.audit
+
+  # example_app has its own mix.lock; the root job above does not see it.
+  example_app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.20.2"
+      - run: mix local.hex --force
+      - run: mix deps.get
+        working-directory: example_app
+      - run: mix hex.audit
+        working-directory: example_app
