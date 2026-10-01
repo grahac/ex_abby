@@ -1,12 +1,21 @@
 name: CI
 
+# The hosted suite is opt-in. Every PR push used to spend hosted minutes
+# re-running checks the local gate already runs. Label a PR `ci` to request the
+# hosted run; without the label the job is skipped and unbilled. Pushes to main
+# still run it, because those are direct pushes rather than merge duplicates.
 on:
   push:
     branches: [main]
   pull_request:
+    # `labeled` must be listed explicitly: GitHub's default PR activities are
+    # opened/synchronize/reopened only, so labeling an open PR would otherwise
+    # start nothing.
+    types: [opened, synchronize, reopened, labeled]
 
 jobs:
   test:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ci')
     runs-on: ubuntu-latest
 
     services:
