@@ -26,10 +26,7 @@ defmodule ExAbby.AdminStyleTest do
       render(&ExperimentIndexLive.render/1, %{
         filter: :active,
         query: "",
-        reports: [],
-        archived: [],
-        counts: %{running: 0, significant: 0, archived: 0},
-        scale: 1.0
+        report_data: Phoenix.LiveView.AsyncResult.ok(%{experiments: [], reports: []})
       })
 
     show_report =

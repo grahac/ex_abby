@@ -21,11 +21,11 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "28"
-          elixir-version: "1.20.2"
+          elixir-version: "1.19"
       - run: mix local.hex --force
       # hex.audit resolves the dependency tree, so it exits 1 on a fresh
       # checkout with no deps/ — without this the audit is red every run and
@@ -39,11 +39,11 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "28"
-          elixir-version: "1.20.2"
+          elixir-version: "1.19"
       - run: mix local.hex --force
       - run: mix deps.get
         working-directory: example_app

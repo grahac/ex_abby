@@ -82,21 +82,15 @@ defmodule ExAbby.ExperimentIndexLiveTest do
 
     reports = [winning_report, quiet_report]
 
-    scale =
-      reports
-      |> Enum.map(& &1.best)
-      |> Enum.reject(&is_nil/1)
-      |> ExperimentReport.lift_scale()
-      |> Kernel.||(1.0)
-
     html =
       render_component(&ExAbby.Live.ExperimentIndexLive.render/1, %{
         filter: :active,
         query: "",
-        reports: reports,
-        archived: [],
-        counts: %{running: 2, significant: 1, archived: 0},
-        scale: scale
+        report_data:
+          Phoenix.LiveView.AsyncResult.ok(%{
+            experiments: [winning_experiment, quiet_experiment],
+            reports: reports
+          })
       })
 
     assert html =~ "home_buy_now_price_v1"

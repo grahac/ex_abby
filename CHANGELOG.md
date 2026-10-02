@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Load admin index reports asynchronously for the selected tab, so archived reports do not delay the initial Running view.
+
+### Changed
+- The admin index's significant-results count applies to the selected tab; running and archived totals remain global.
+
 ## [0.5.1] - 2026-09-01
 
 ### Added
