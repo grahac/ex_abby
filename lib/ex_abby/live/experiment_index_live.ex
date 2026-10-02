@@ -30,6 +30,7 @@ defmodule ExAbby.Live.ExperimentIndexLive do
   end
 
   defp load_reports(socket) do
+    socket = cancel_async(socket, socket.assigns[:report_data])
     filter = socket.assigns.filter
 
     assign_async(

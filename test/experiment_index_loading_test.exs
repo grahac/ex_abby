@@ -144,7 +144,7 @@ defmodule ExAbby.ExperimentIndexLoadingTest do
     assert_receive {:summary_query, 2}
   end
 
-  test "a slow previous tab cannot replace the latest tab's results" do
+  test "switching tabs cancels the previous load before it queries summaries" do
     data = Application.fetch_env!(:ex_abby, :index_test_data)
     Application.put_env(:ex_abby, :index_test_data, %{data | block?: true})
 
@@ -152,17 +152,18 @@ defmodule ExAbby.ExperimentIndexLoadingTest do
     assert_receive {:metadata_query, task}
     send(task, :continue)
     render_async(view)
+    assert_receive {:summary_query, 1}
 
     render_click(view, "filter", %{"status" => "archived"})
     assert_receive {:metadata_query, archived_task}
+    ref = Process.monitor(archived_task)
     render_click(view, "filter", %{"status" => "active"})
+    assert_receive {:DOWN, ^ref, :process, ^archived_task, {:shutdown, :cancel}}
     assert_receive {:metadata_query, active_task}
     send(active_task, :continue)
     render_async(view)
-
-    ref = Process.monitor(archived_task)
-    send(archived_task, :continue)
-    assert_receive {:DOWN, ^ref, :process, ^archived_task, :normal}
+    assert_receive {:summary_query, 1}
+    refute_received {:summary_query, 2}
 
     assert has_element?(view, ".ex-abby-index__table a", "experiment_1")
     refute has_element?(view, ".ex-abby-index__table a", "experiment_2")
