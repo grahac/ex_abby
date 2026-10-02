@@ -4,7 +4,7 @@ defmodule ExAbby.Live.ExperimentIndexLive do
   """
   use Phoenix.LiveView
   import ExAbby.Live.AdminComponents
-  alias ExAbby.ExperimentReport
+  alias ExAbby.{ExperimentReport, Experiments}
 
   @spec mount(any(), any(), map()) :: {:ok, map()}
   def mount(_params, _session, socket) do
@@ -12,8 +12,7 @@ defmodule ExAbby.Live.ExperimentIndexLive do
      socket
      |> assign(:filter, :active)
      |> assign(:query, "")
-     |> assign(:all_reports, ExperimentReport.list(:all))
-     |> derive_view()
+     |> load_reports()
      |> assign(:page_title, "ExAbby - Index")}
   end
 
@@ -21,33 +20,51 @@ defmodule ExAbby.Live.ExperimentIndexLive do
     {:noreply,
      socket
      |> assign(:filter, filter_atom(status))
-     |> assign(:all_reports, ExperimentReport.list(:all))
-     |> derive_view()}
+     |> load_reports()}
   end
 
   def handle_event("search", %{"query" => query}, socket) do
     {:noreply,
      socket
-     |> assign(:query, query)
-     |> derive_view()}
+     |> assign(:query, query)}
+  end
+
+  defp load_reports(socket) do
+    filter = socket.assigns.filter
+
+    assign_async(
+      socket,
+      :report_data,
+      fn ->
+        experiments = Experiments.list_experiments()
+
+        reports =
+          experiments
+          |> Enum.filter(&matches_filter?(&1, filter))
+          |> Enum.map(&ExperimentReport.build/1)
+
+        {:ok, %{report_data: %{experiments: experiments, reports: reports}}}
+      end,
+      reset: true
+    )
   end
 
   defp filter_atom("active"), do: :active
   defp filter_atom("archived"), do: :archived
   defp filter_atom("all"), do: :all
 
-  defp derive_view(socket) do
-    %{all_reports: all, filter: filter, query: query} = socket.assigns
+  defp derive_view(%{report_data: %{ok?: true, result: data}} = assigns) do
+    %{filter: filter, query: query} = assigns
+    %{experiments: experiments, reports: loaded_reports} = data
 
     counts = %{
-      running: Enum.count(all, &is_nil(&1.experiment.archived_at)),
-      significant: Enum.count(all, &significant?/1),
-      archived: Enum.count(all, & &1.experiment.archived_at)
+      running: Enum.count(experiments, &is_nil(&1.archived_at)),
+      significant: Enum.count(loaded_reports, &significant?/1),
+      archived: Enum.count(experiments, & &1.archived_at)
     }
 
     reports =
-      all
-      |> Enum.filter(&matches_filter?(&1, filter))
+      loaded_reports
       |> Enum.filter(&matches_query?(&1, query))
 
     scale =
@@ -59,27 +76,31 @@ defmodule ExAbby.Live.ExperimentIndexLive do
 
     archived =
       if filter == :active do
-        all
-        |> Enum.filter(& &1.experiment.archived_at)
-        |> Enum.sort_by(& &1.experiment.archived_at, {:desc, DateTime})
+        experiments
+        |> Enum.filter(& &1.archived_at)
+        |> Enum.sort_by(& &1.archived_at, {:desc, DateTime})
         |> Enum.take(3)
       else
         []
       end
 
-    socket
+    assigns
     |> assign(:counts, counts)
     |> assign(:reports, reports)
     |> assign(:archived, archived)
     |> assign(:scale, scale)
   end
 
+  defp derive_view(assigns) do
+    assign(assigns, counts: nil, reports: [], archived: [], scale: 1.0)
+  end
+
   defp significant?(%{best: nil}), do: false
   defp significant?(%{best: best}), do: best.significant?
 
-  defp matches_filter?(_report, :all), do: true
-  defp matches_filter?(report, :active), do: is_nil(report.experiment.archived_at)
-  defp matches_filter?(report, :archived), do: !is_nil(report.experiment.archived_at)
+  defp matches_filter?(_experiment, :all), do: true
+  defp matches_filter?(experiment, :active), do: is_nil(experiment.archived_at)
+  defp matches_filter?(experiment, :archived), do: !is_nil(experiment.archived_at)
 
   defp matches_query?(_report, ""), do: true
 
@@ -108,6 +129,8 @@ defmodule ExAbby.Live.ExperimentIndexLive do
   defp format_scale(scale), do: :erlang.float_to_binary(scale, decimals: 1)
 
   def render(assigns) do
+    assigns = derive_view(assigns)
+
     ~H"""
     <ExAbby.Live.AdminStyle.styles />
     <style>
@@ -187,12 +210,12 @@ defmodule ExAbby.Live.ExperimentIndexLive do
         <header class="ex-abby-admin__header">
           <div>
             <h1 class="ex-abby-admin__title">Experiments</h1>
-            <p class="ex-abby-admin__subtitle">
-              {@counts.running} running · {@counts.significant} with a significant result · {@counts.archived} archived
+            <p :if={@counts} class="ex-abby-admin__subtitle">
+              {@counts.running} running · {@counts.significant} with a significant result in this tab · {@counts.archived} archived
             </p>
           </div>
           <div class="ex-abby-toolbar">
-            <form phx-change="search" phx-submit="search">
+            <form id="ex-abby-index-search" phx-change="search" phx-submit="search">
               <input
                 type="text"
                 name="query"
@@ -235,7 +258,17 @@ defmodule ExAbby.Live.ExperimentIndexLive do
           </div>
         </header>
 
-        <div class="ex-abby-table-frame ex-abby-index__table">
+        <.async_result assign={@report_data}>
+          <:loading>
+            <div class="ex-abby-empty-state" role="status">Loading experiments…</div>
+          </:loading>
+          <:failed>
+            <div class="ex-abby-empty-state" role="alert">
+              Could not load experiment results. Reload to try again.
+            </div>
+          </:failed>
+        </.async_result>
+        <div :if={@report_data.ok?} class="ex-abby-table-frame ex-abby-index__table">
           <table class="ex-abby-table">
             <thead>
               <tr>
@@ -297,20 +330,20 @@ defmodule ExAbby.Live.ExperimentIndexLive do
           </div>
           <table class="ex-abby-table">
             <tbody>
-              <tr :for={r <- @archived}>
+              <tr :for={experiment <- @archived}>
                 <td>
-                  <.link navigate={"#{r.experiment.id}"} class="ex-abby-mono">
-                    {r.experiment.name}
+                  <.link navigate={"#{experiment.id}"} class="ex-abby-mono">
+                    {experiment.name}
                   </.link>
                 </td>
                 <td class="ex-abby-muted">
-                  <span :if={is_nil(r.experiment.winner_variation_id)}>No winner</span>
-                  <span :if={r.experiment.winner_variation_id}>
-                    Winner <span class="ex-abby-mono">{winner_name(r.experiment)}</span>
+                  <span :if={is_nil(experiment.winner_variation_id)}>No winner</span>
+                  <span :if={experiment.winner_variation_id}>
+                    Winner <span class="ex-abby-mono">{winner_name(experiment)}</span>
                   </span>
                 </td>
                 <td class="ex-abby-num ex-abby-muted">
-                  Archived {Calendar.strftime(r.experiment.archived_at, "%-d %b %Y")}
+                  Archived {Calendar.strftime(experiment.archived_at, "%-d %b %Y")}
                 </td>
               </tr>
             </tbody>
