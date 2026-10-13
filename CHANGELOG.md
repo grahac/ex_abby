@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-13
+
 ### Fixed
 - Load admin index reports asynchronously for the selected tab, so archived reports do not delay the initial Running view.
+- Cancel superseded admin index report loads when switching tabs, so a stale load cannot overwrite the current tab.
 
 ### Changed
 - The admin index's significant-results count applies to the selected tab; running and archived totals remain global.
@@ -84,7 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed formatting of trial count display
 - Improved handling when experiment does not exist
 
-[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/grahac/ex_abby/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/grahac/ex_abby/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/grahac/ex_abby/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/grahac/ex_abby/compare/v0.3.0...v0.4.0
 [0.2.2]: https://github.com/grahac/ex_abby/compare/3e00820...v0.2.2
