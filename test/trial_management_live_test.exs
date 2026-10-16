@@ -24,6 +24,29 @@ defmodule ExAbby.Live.TrialManagementLiveTest do
 
   defp viewer(attrs), do: Map.merge(%{admin?: false, session_id: nil, user_id: nil}, attrs)
 
+  test "malformed client IDs return an error without querying or crashing" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, flash: %{}}}
+
+    for {trial_id, variation_id} <- [
+          {"invalid", "100"},
+          {"1", "invalid"},
+          {"1suffix", "100"},
+          {"1", "100suffix"},
+          {"", "100"},
+          {"0", "100"},
+          {nil, "100"}
+        ] do
+      assert {:noreply, result} =
+               TrialManagementLive.handle_event(
+                 "update-variation",
+                 %{"trial_id" => trial_id, "variation_id" => variation_id},
+                 socket
+               )
+
+      assert result.assigns.flash["error"] == "Failed to update variation"
+    end
+  end
+
   test "a visitor may move their own session trial" do
     assert TrialManagementLive.update_allowed?(
              @session_trial,

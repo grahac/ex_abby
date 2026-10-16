@@ -2,6 +2,10 @@ defmodule ExAbby.Router do
   @moduledoc """
   Provides macros for injecting ExAbby admin routes into a Phoenix router.
 
+  The host must protect `ex_abby_admin_routes/1` with admin authentication.
+  These routes allow viewing and editing any user's trials; the library does
+  not authenticate administrators.
+
   Usage in host app's `router.ex`:
 
       defmodule MyAppWeb.Router do

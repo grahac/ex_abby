@@ -18,7 +18,7 @@ defmodule ExAbby.Live.TrialManagementLive do
   def handle_params(params, _uri, socket) do
     user_id =
       cond do
-        admin?(socket) and params["user_id"] -> String.to_integer(params["user_id"])
+        admin?(socket) and params["user_id"] -> parse_id(params["user_id"])
         socket.assigns[:current_user] -> socket.assigns.current_user.id
         true -> nil
       end
@@ -51,28 +51,19 @@ defmodule ExAbby.Live.TrialManagementLive do
         %{"trial_id" => trial_id, "variation_id" => variation_id},
         socket
       ) do
-    {trial_id, _} = Integer.parse(trial_id)
-    {variation_id, _} = Integer.parse(variation_id)
-    trial = Experiments.get_trial(trial_id)
-    variation = Experiments.get_variation(variation_id)
-
-    if update_allowed?(trial, variation, viewer(socket)) do
-      case Experiments.update_trial_variation(trial_id, variation_id) do
-        {:ok, _updated_trial} -> {:noreply, socket}
-        _ -> {:noreply, put_flash(socket, :error, "Failed to update variation")}
-      end
+    with trial_id when not is_nil(trial_id) <- parse_id(trial_id),
+         variation_id when not is_nil(variation_id) <- parse_id(variation_id),
+         trial <- Experiments.get_trial(trial_id),
+         variation <- Experiments.get_variation(variation_id),
+         true <- update_allowed?(trial, variation, viewer(socket)),
+         {:ok, _updated_trial} <- Experiments.update_trial_variation(trial_id, variation_id) do
+      {:noreply, socket}
     else
-      {:noreply, put_flash(socket, :error, "Failed to update variation")}
+      _ -> {:noreply, put_flash(socket, :error, "Failed to update variation")}
     end
   end
 
-  @doc """
-  Whether the viewer may move `trial` to `variation`. The variation must belong
-  to the trial's experiment. Only the admin mount (`ex_abby_admin_routes/1`)
-  may change any trial; every other mount, including a public trials page,
-  may change only the viewer's own session or user trials, so a client cannot
-  rewrite someone else's assignment by sending another trial id.
-  """
+  @doc false
   def update_allowed?(
         %{experiment_id: experiment_id} = trial,
         %{experiment_id: experiment_id},
@@ -97,6 +88,15 @@ defmodule ExAbby.Live.TrialManagementLive do
   end
 
   defp admin?(socket), do: socket.assigns[:live_action] == :admin
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
+  end
+
+  defp parse_id(_value), do: nil
 
   def render(assigns) do
     ~H"""
