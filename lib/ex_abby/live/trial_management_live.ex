@@ -18,7 +18,7 @@ defmodule ExAbby.Live.TrialManagementLive do
   def handle_params(params, _uri, socket) do
     user_id =
       cond do
-        params["user_id"] -> String.to_integer(params["user_id"])
+        admin?(socket) and params["user_id"] -> parse_id(params["user_id"])
         socket.assigns[:current_user] -> socket.assigns.current_user.id
         true -> nil
       end
@@ -51,14 +51,52 @@ defmodule ExAbby.Live.TrialManagementLive do
         %{"trial_id" => trial_id, "variation_id" => variation_id},
         socket
       ) do
-    {trial_id, _} = Integer.parse(trial_id)
-    {variation_id, _} = Integer.parse(variation_id)
-
-    case Experiments.update_trial_variation(trial_id, variation_id) do
-      {:ok, _updated_trial} -> {:noreply, socket}
+    with trial_id when not is_nil(trial_id) <- parse_id(trial_id),
+         variation_id when not is_nil(variation_id) <- parse_id(variation_id),
+         trial <- Experiments.get_trial(trial_id),
+         variation <- Experiments.get_variation(variation_id),
+         true <- update_allowed?(trial, variation, viewer(socket)),
+         {:ok, _updated_trial} <- Experiments.update_trial_variation(trial_id, variation_id) do
+      {:noreply, socket}
+    else
       _ -> {:noreply, put_flash(socket, :error, "Failed to update variation")}
     end
   end
+
+  @doc false
+  def update_allowed?(
+        %{experiment_id: experiment_id} = trial,
+        %{experiment_id: experiment_id},
+        viewer
+      ) do
+    viewer.admin? or owns?(trial, viewer)
+  end
+
+  def update_allowed?(_trial, _variation, _viewer), do: false
+
+  defp owns?(trial, %{session_id: session_id, user_id: user_id}) do
+    (not is_nil(session_id) and trial.session_id == session_id) or
+      (not is_nil(user_id) and trial.user_id == user_id)
+  end
+
+  defp viewer(socket) do
+    %{
+      admin?: admin?(socket),
+      session_id: socket.assigns[:ex_abby_session_id],
+      user_id: socket.assigns[:current_user] && socket.assigns.current_user.id
+    }
+  end
+
+  defp admin?(socket), do: socket.assigns[:live_action] == :admin
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} when id > 0 -> id
+      _ -> nil
+    end
+  end
+
+  defp parse_id(_value), do: nil
 
   def render(assigns) do
     ~H"""
