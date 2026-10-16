@@ -920,6 +920,9 @@ defmodule ExAbby.Experiments do
     end
   end
 
+  @doc "Gets a trial by ID, or nil."
+  def get_trial(id), do: repo().get(Trial, id)
+
   @doc """
   Updates the variation for a specific trial.
   """

@@ -34,7 +34,9 @@ defmodule ExAbby.Router do
 
       # These are the LiveViews for your A/B test admin pages:
       live("/ex_abby", ExAbby.Live.ExAbbyRedirectLive)
-      live("/ex_abby/trials", ExAbby.Live.TrialManagementLive)
+      # The :admin action lets the trials page view and edit any user's or
+      # session's trials; every other mount is limited to the viewer's own.
+      live("/ex_abby/trials", ExAbby.Live.TrialManagementLive, :admin)
       live("/ex_abby/index", ExAbby.Live.ExperimentIndexLive)
       live("/ex_abby/:id", ExAbby.Live.ExperimentShowLive)
     end

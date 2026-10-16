@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- The trials page (`ExAbby.Live.TrialManagementLive`) now changes only the viewer's own trials: their session's, or their signed-in user's. Before, "update-variation" updated any trial id the client sent, so a public trials page let anyone rewrite other visitors' assignments. The variation must also belong to the trial's experiment.
+- `?user_id=` on the trials page is honoured only on the admin mount; elsewhere it no longer shows another user's trials.
+
+### Changed
+- `ex_abby_admin_routes/1` mounts the trials page with the `:admin` live action, which keeps the admin's ability to view and edit any trial. A host that mounts `TrialManagementLive` directly (for example, as a hidden public page) gets the owner-only behaviour.
+
 ## [0.5.2] - 2026-10-13
 
 ### Fixed
