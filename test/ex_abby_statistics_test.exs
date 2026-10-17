@@ -25,8 +25,8 @@ defmodule ExAbby.StatisticsTest do
       refute treatment_a.significant?
 
       assert treatment_b.status == :ready
-      assert_in_delta treatment_b.raw_p_value, 0.0000000466186, 1.0e-12
-      assert_in_delta treatment_b.p_value, 0.0000000932373, 1.0e-12
+      assert_in_delta treatment_b.raw_p_value, 0.0000000229820, 1.0e-12
+      assert_in_delta treatment_b.p_value, 0.0000000459640, 1.0e-12
       assert treatment_b.significant?
     end
 
@@ -51,16 +51,16 @@ defmodule ExAbby.StatisticsTest do
       ]
 
       assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
-      assert significance.method == :beta_binomial_mixture_confidence_sequence
+      assert significance.method == :asymptotic_confidence_sequence
       assert significance.anytime_valid?
 
       comparison = significance.comparisons[2]
       assert comparison.status == :ready
       refute comparison.significant?
-      assert comparison.p_value == 1.0
+      assert_in_delta comparison.p_value, 0.9601383659, 1.0e-9
       assert_in_delta comparison.lift, 0.04, 1.0e-12
-      assert_in_delta comparison.confidence_interval.lower, -0.0724872414, 1.0e-9
-      assert_in_delta comparison.confidence_interval.upper, 0.1507760676, 1.0e-9
+      assert_in_delta comparison.confidence_interval.lower, -0.2080995374, 1.0e-9
+      assert_in_delta comparison.confidence_interval.upper, 0.2880995374, 1.0e-9
     end
 
     test "includes unavailable treatments in the multiple-comparison family" do
@@ -72,7 +72,7 @@ defmodule ExAbby.StatisticsTest do
 
       assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
 
-      assert_in_delta significance.comparisons[2].p_value, 0.0000000932373, 1.0e-12
+      assert_in_delta significance.comparisons[2].p_value, 0.0000000459640, 1.0e-12
       assert significance.comparisons[3] == %{status: :insufficient_data}
     end
 
@@ -102,8 +102,46 @@ defmodule ExAbby.StatisticsTest do
       comparison = significance.comparisons[2]
       assert comparison.significant?
       assert comparison.confidence_interval.confidence_level == 0.75
-      assert_in_delta comparison.confidence_interval.lower, 0.0332847338, 1.0e-9
-      assert_in_delta comparison.confidence_interval.upper, 0.1657543346, 1.0e-9
+      assert_in_delta comparison.confidence_interval.lower, 0.0563626825, 1.0e-9
+      assert_in_delta comparison.confidence_interval.upper, 0.1436373175, 1.0e-9
+    end
+
+    test "detects a doubled low conversion rate at a few thousand trials per arm" do
+      summary = [result(1, "control", 4_000, 40), result(2, "treatment", 4_000, 80)]
+
+      assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
+
+      comparison = significance.comparisons[2]
+      assert comparison.significant?
+      assert_in_delta comparison.p_value, 0.0127756856, 1.0e-9
+      assert comparison.confidence_interval.lower > 0.0
+    end
+
+    test "keeps false positives below alpha when an A/A test is checked repeatedly" do
+      :rand.seed(:exsss, {1, 2, 3})
+      experiments = 200
+
+      false_positives =
+        Enum.count(1..experiments, fn _ ->
+          Enum.reduce_while(1..100, {0, 0}, fn look, {control, treatment} ->
+            control = control + conversions(100, 0.01)
+            treatment = treatment + conversions(100, 0.01)
+            trials = look * 100
+
+            summary = [
+              result(1, "control", trials, control),
+              result(2, "treatment", trials, treatment)
+            ]
+
+            {:ok, significance} = Statistics.compare_to_control(summary, :success1)
+
+            if significance.comparisons[2].significant?,
+              do: {:halt, :false_positive},
+              else: {:cont, {control, treatment}}
+          end) == :false_positive
+        end)
+
+      assert false_positives / experiments < 0.05
     end
 
     test "rejects an invalid significance threshold" do
@@ -206,6 +244,8 @@ defmodule ExAbby.StatisticsTest do
       assert significance_by_metric.success1.correction_family_size == 0
     end
   end
+
+  defp conversions(trials, rate), do: Enum.count(1..trials, fn _ -> :rand.uniform() < rate end)
 
   defp result(id, name, trials, success1_unique, success2_unique \\ 0) do
     %{

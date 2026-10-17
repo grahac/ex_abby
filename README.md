@@ -420,8 +420,11 @@ end
 
 The experiment results view compares every treatment with the variation named
 by `control_variation_name`. It calculates two-sided, anytime-valid p-values by
-inverting beta-binomial mixture confidence sequences for the binary conversion
-rate in each arm. The calculation uses unique converters and trials in the
+inverting an asymptotic confidence sequence for the difference in conversion
+rates (Waudby-Smith et al., 2024). The p-values stay valid no matter how often
+you check the page, so you can stop as soon as a result is significant, provided
+the start date and metrics were not chosen after looking at the results. The
+calculation uses unique converters and trials in the
 selected date range; excluded trials do not contribute to either count.
 
 ExAbby applies Holm's adjustment to reduce false positives from making several
