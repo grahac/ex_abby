@@ -19,7 +19,11 @@ defmodule ExAbby.Statistics do
   The returned p-values invert a two-sided asymptotic confidence sequence for
   the difference in conversion rates (Waudby-Smith et al., 2024, "Time-uniform
   central limit theory and asymptotic confidence sequences"). They remain valid
-  under continuous monitoring and are adjusted together with Holm's method. The
+  under continuous monitoring and are adjusted together with Holm's method.
+  Validity is asymptotic: arm variances are estimated from the data, and A/A
+  simulations at base rates down to 0.2% keep false positives below alpha. The
+  p-value reflects the current look only, so it can rise again after crossing
+  alpha; the decision made when it crossed remains valid. The
   correction family is every treatment in `summary`, including those returned as
   `:insufficient_data`, so that the family is fixed by the experiment's design
   rather than by which arms currently have data.
