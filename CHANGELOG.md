@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-17
+
+### Changed
+- Significance now uses an asymptotic confidence sequence on the difference in conversion rates (Waudby-Smith et al., 2024) instead of separate beta-binomial confidence sequences per arm. P-values are still safe to check at any time, but they no longer sit at 1.0 for any realistic lift: at a 1% base rate and 4,000 trials per arm, a doubled conversion rate now gives p ≈ 0.013 instead of 1.0. `compare_to_control/3` and `compare_metrics_to_control/3` report `method: :asymptotic_confidence_sequence`, and p-values and lift intervals change for existing experiments.
+
 ## [0.5.3] - 2026-10-16
 
 ### Security
@@ -96,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed formatting of trial count display
 - Improved handling when experiment does not exist
 
-[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/grahac/ex_abby/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/grahac/ex_abby/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/grahac/ex_abby/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/grahac/ex_abby/compare/v0.5.0...v0.5.1
