@@ -124,6 +124,44 @@ defmodule ExAbby.StatisticsTest do
       assert_in_delta comparison.confidence_interval.upper, 0.1657543346, 1.0e-9
     end
 
+    test "keeps a doubled low conversion rate inconclusive at a few thousand trials per arm" do
+      summary = [result(1, "control", 4_000, 40), result(2, "treatment", 4_000, 80)]
+
+      assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
+
+      comparison = significance.comparisons[2]
+      refute comparison.significant?
+      assert comparison.p_value == 1.0
+      assert comparison.confidence_interval.lower <= 0.0
+    end
+
+    test "keeps false positives below alpha when an A/A test is checked repeatedly" do
+      :rand.seed(:exsss, {1, 2, 3})
+      experiments = 200
+
+      false_positives =
+        Enum.count(1..experiments, fn _ ->
+          Enum.reduce_while(1..100, {0, 0}, fn look, {control, treatment} ->
+            control = control + conversions(100, 0.01)
+            treatment = treatment + conversions(100, 0.01)
+            trials = look * 100
+
+            summary = [
+              result(1, "control", trials, control),
+              result(2, "treatment", trials, treatment)
+            ]
+
+            {:ok, significance} = Statistics.compare_to_control(summary, :success1)
+
+            if significance.comparisons[2].significant?,
+              do: {:halt, :false_positive},
+              else: {:cont, {control, treatment}}
+          end) == :false_positive
+        end)
+
+      assert false_positives / experiments < 0.05
+    end
+
     test "rejects an invalid significance threshold" do
       summary = [result(1, "control", 100, 10), result(2, "treatment", 100, 20)]
 
@@ -224,6 +262,8 @@ defmodule ExAbby.StatisticsTest do
       assert significance_by_metric.success1.correction_family_size == 0
     end
   end
+
+  defp conversions(trials, rate), do: Enum.count(1..trials, fn _ -> :rand.uniform() < rate end)
 
   defp result(id, name, trials, success1_unique, success2_unique \\ 0) do
     %{
