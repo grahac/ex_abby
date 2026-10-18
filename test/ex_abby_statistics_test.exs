@@ -4,6 +4,24 @@ defmodule ExAbby.StatisticsTest do
   alias ExAbby.Statistics
 
   describe "compare_to_control/3" do
+    test "does not overstate evidence for sparse arms with unequal traffic" do
+      for control_conversions <- [0, 10], treatment_conversions <- [4_900, 5_000, 5_100] do
+        summary = [
+          result(1, "control", 10, control_conversions),
+          result(2, "treatment", 10_000, treatment_conversions)
+        ]
+
+        assert {:ok, significance} =
+                 Statistics.compare_to_control(summary, :success1, alpha: 0.0001)
+
+        comparison = significance.comparisons[2]
+        refute comparison.significant?
+        assert comparison.p_value >= 0.0001
+        assert comparison.confidence_interval.lower <= 0.0
+        assert comparison.confidence_interval.upper >= 0.0
+      end
+    end
+
     test "compares every treatment with control using Holm-adjusted anytime-valid p-values" do
       summary = [
         result(1, "control", 1_000, 100),

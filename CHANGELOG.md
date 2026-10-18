@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `config :ex_abby, alpha: 0.10` sets the significance threshold (default `0.05`). The admin views highlight p-values and draw lift intervals at the configured level.
+
 ## [0.5.3] - 2026-10-16
 
 ### Security

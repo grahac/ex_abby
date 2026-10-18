@@ -8,7 +8,9 @@ A Bayesian Beta-Binomial view is viable if ExAbby deliberately changes the produ
 
 ## Implemented design
 
-ExAbby now uses a two-sided beta-binomial mixture confidence sequence from Howard et al. for each arm's Bernoulli conversion mean. Combining the treatment and control sequences with an equal error split yields an anytime-valid confidence sequence for absolute lift. Inverting that sequence produces the raw treatment-versus-control p-value, and Holm's procedure jointly adjusts every treatment-by-metric comparison shown on the results page. This remains dependency-free and computable from the summary counts ExAbby already exposes while adapting to the Bernoulli mean more tightly than the generic Hoeffding normal-mixture boundary.
+ExAbby uses two-sided beta-binomial mixture confidence sequences for each arm, then subtracts their bounds to obtain a confidence sequence for treatment-minus-control lift. Inverting that interval gives the raw p-value; Holm's procedure jointly adjusts every treatment-by-metric comparison displayed. The configured `alpha` sets the decision threshold and interval confidence level.
+
+A proposed normal-mixture replacement was rejected because substituting observed Bernoulli variances and a data-dependent mixture width did not preserve the claimed martingale guarantee. Under identical 50% conversion rates, 10 control trials and 10,000 treatment trials, the event where control has 0 or 10 conversions and treatment has 4,900–5,100 conversions alone has probability about 0.001866, yet the replacement declared significance at alpha 0.0001 throughout that event. The deterministic unequal-traffic regression in `test/ex_abby_statistics_test.exs` protects this case. The retained method can be conservative for low-traffic experiments; a more powerful replacement must establish sequential validity before replacing it.
 
 The guarantee covers continuous monitoring and data-dependent stopping for fixed start-date, metric-family, and eligibility rules. Selecting date ranges, additional metrics, or exclusions after inspecting results is a separate selection problem and is not made valid merely by using a confidence sequence.
 

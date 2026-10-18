@@ -19,6 +19,7 @@ defmodule ExAbby.ExperimentReport do
     :summary,
     :metrics,
     :control_variation_name,
+    :alpha,
     :significance,
     :best,
     :winners,
@@ -52,13 +53,15 @@ defmodule ExAbby.ExperimentReport do
   """
   def from_summary(%Experiment{} = experiment, summary, %DateTime{} = now) do
     control_variation_name = Application.get_env(:ex_abby, :control_variation_name, "control")
+    alpha = alpha()
 
     metrics =
       if show_success2?(experiment, summary), do: [:success1, :success2], else: [:success1]
 
     significance =
       Statistics.compare_metrics_to_control(summary, metrics,
-        control_name: control_variation_name
+        control_name: control_variation_name,
+        alpha: alpha
       )
 
     comparisons = ready_comparisons(significance, summary)
@@ -68,6 +71,7 @@ defmodule ExAbby.ExperimentReport do
       summary: summary,
       metrics: metrics,
       control_variation_name: control_variation_name,
+      alpha: alpha,
       significance: significance,
       best: Enum.min_by(comparisons, & &1.p_value, fn -> nil end),
       winners: Map.new(metrics, &{&1, winner(comparisons, &1, control_variation_name)}),
@@ -77,6 +81,12 @@ defmodule ExAbby.ExperimentReport do
       weights_by_variation_id: Map.new(experiment.variations, &{&1.id, &1.weight})
     }
   end
+
+  @doc """
+  The configured significance threshold: the highest acceptable chance of
+  calling a winner when there is no real difference.
+  """
+  def alpha, do: Application.get_env(:ex_abby, :alpha, 0.05)
 
   @doc """
   Whether the second success metric is configured or has recorded conversions.

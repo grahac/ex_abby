@@ -308,12 +308,14 @@ defmodule ExAbby.Live.ExperimentShowLive do
           <div class="ex-abby-panel ex-abby-show__methodology-panel">
             <span class="ex-abby-eyebrow">How to read the lift bar</span>
             <p>
-              In the allocation table, the dot is the measured lift and the bar is its 95%
+              In the allocation table, the dot is the measured lift and the bar is its {format_confidence(
+                1 - @report.alpha
+              )}
               anytime-valid interval against a zero line. Values are the difference between two
               conversion rates <strong>in points</strong>, not a relative change — 20% against
               30% reads as +10, not +50%. A bar crossing the zero line means "no difference" is
               still on the table. Intervals are <em>not</em> Holm-adjusted, so a bar can clear
-              zero while the adjusted p-value sits above 0.05. "No data" means either arm has no
+              zero while the adjusted p-value sits above {format_alpha(@report.alpha)}. "No data" means either arm has no
               eligible trials.
             </p>
           </div>
