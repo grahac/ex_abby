@@ -4,7 +4,7 @@ defmodule ExAbby.Live.AdminComponents do
   use Phoenix.Component
 
   @doc """
-  Lift-versus-control chart: a dot at the measured lift and a bar for its 95%
+  Lift-versus-control chart: a dot at the measured lift and a bar for its
   anytime-valid interval, drawn against a zero line on a shared `scale`
   (in percentage points).
   """
@@ -75,7 +75,8 @@ defmodule ExAbby.Live.AdminComponents do
   end
 
   defp chart_title(comparison) do
-    "lift #{format_points(comparison.lift)} points, 95% interval " <>
+    "lift #{format_points(comparison.lift)} points, " <>
+      "#{format_confidence(comparison.confidence_interval.confidence_level)} interval " <>
       "#{format_points(comparison.confidence_interval.lower)} to " <>
       "#{format_points(comparison.confidence_interval.upper)}"
   end
@@ -89,6 +90,15 @@ defmodule ExAbby.Live.AdminComponents do
 
   @doc "Conversion rate as a percentage: `11.25%`."
   def format_rate(rate), do: :erlang.float_to_binary(rate * 100, decimals: 2) <> "%"
+
+  @doc "Confidence level as a percentage: `95%`, `97.5%`."
+  def format_confidence(level) do
+    percent = Float.round(level * 100.0, 1)
+    if percent == Float.round(percent), do: "#{trunc(percent)}%", else: "#{percent}%"
+  end
+
+  @doc "Significance threshold with two decimals: `0.05`, `0.10`."
+  def format_alpha(alpha), do: :erlang.float_to_binary(alpha * 1.0, decimals: 2)
 
   @doc "Adjusted p-value: `< 0.001` or three decimals."
   def format_p(p_value) when p_value < 0.001, do: "< 0.001"

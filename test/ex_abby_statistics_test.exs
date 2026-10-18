@@ -4,6 +4,24 @@ defmodule ExAbby.StatisticsTest do
   alias ExAbby.Statistics
 
   describe "compare_to_control/3" do
+    test "does not overstate evidence for sparse arms with unequal traffic" do
+      for control_conversions <- [0, 10], treatment_conversions <- [4_900, 5_000, 5_100] do
+        summary = [
+          result(1, "control", 10, control_conversions),
+          result(2, "treatment", 10_000, treatment_conversions)
+        ]
+
+        assert {:ok, significance} =
+                 Statistics.compare_to_control(summary, :success1, alpha: 0.0001)
+
+        comparison = significance.comparisons[2]
+        refute comparison.significant?
+        assert comparison.p_value >= 0.0001
+        assert comparison.confidence_interval.lower <= 0.0
+        assert comparison.confidence_interval.upper >= 0.0
+      end
+    end
+
     test "compares every treatment with control using Holm-adjusted anytime-valid p-values" do
       summary = [
         result(1, "control", 1_000, 100),
@@ -25,8 +43,8 @@ defmodule ExAbby.StatisticsTest do
       refute treatment_a.significant?
 
       assert treatment_b.status == :ready
-      assert_in_delta treatment_b.raw_p_value, 0.0000000229820, 1.0e-12
-      assert_in_delta treatment_b.p_value, 0.0000000459640, 1.0e-12
+      assert_in_delta treatment_b.raw_p_value, 0.0000000466186, 1.0e-12
+      assert_in_delta treatment_b.p_value, 0.0000000932373, 1.0e-12
       assert treatment_b.significant?
     end
 
@@ -51,16 +69,16 @@ defmodule ExAbby.StatisticsTest do
       ]
 
       assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
-      assert significance.method == :asymptotic_confidence_sequence
+      assert significance.method == :beta_binomial_mixture_confidence_sequence
       assert significance.anytime_valid?
 
       comparison = significance.comparisons[2]
       assert comparison.status == :ready
       refute comparison.significant?
-      assert_in_delta comparison.p_value, 0.9601383659, 1.0e-9
+      assert comparison.p_value == 1.0
       assert_in_delta comparison.lift, 0.04, 1.0e-12
-      assert_in_delta comparison.confidence_interval.lower, -0.2080995374, 1.0e-9
-      assert_in_delta comparison.confidence_interval.upper, 0.2880995374, 1.0e-9
+      assert_in_delta comparison.confidence_interval.lower, -0.0724872414, 1.0e-9
+      assert_in_delta comparison.confidence_interval.upper, 0.1507760676, 1.0e-9
     end
 
     test "includes unavailable treatments in the multiple-comparison family" do
@@ -72,7 +90,7 @@ defmodule ExAbby.StatisticsTest do
 
       assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
 
-      assert_in_delta significance.comparisons[2].p_value, 0.0000000459640, 1.0e-12
+      assert_in_delta significance.comparisons[2].p_value, 0.0000000932373, 1.0e-12
       assert significance.comparisons[3] == %{status: :insufficient_data}
     end
 
@@ -102,19 +120,19 @@ defmodule ExAbby.StatisticsTest do
       comparison = significance.comparisons[2]
       assert comparison.significant?
       assert comparison.confidence_interval.confidence_level == 0.75
-      assert_in_delta comparison.confidence_interval.lower, 0.0563626825, 1.0e-9
-      assert_in_delta comparison.confidence_interval.upper, 0.1436373175, 1.0e-9
+      assert_in_delta comparison.confidence_interval.lower, 0.0332847338, 1.0e-9
+      assert_in_delta comparison.confidence_interval.upper, 0.1657543346, 1.0e-9
     end
 
-    test "detects a doubled low conversion rate at a few thousand trials per arm" do
+    test "keeps a doubled low conversion rate inconclusive at a few thousand trials per arm" do
       summary = [result(1, "control", 4_000, 40), result(2, "treatment", 4_000, 80)]
 
       assert {:ok, significance} = Statistics.compare_to_control(summary, :success1)
 
       comparison = significance.comparisons[2]
-      assert comparison.significant?
-      assert_in_delta comparison.p_value, 0.0127756856, 1.0e-9
-      assert comparison.confidence_interval.lower > 0.0
+      refute comparison.significant?
+      assert comparison.p_value == 1.0
+      assert comparison.confidence_interval.lower <= 0.0
     end
 
     test "keeps false positives below alpha when an A/A test is checked repeatedly" do

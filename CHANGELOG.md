@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `config :ex_abby, alpha: 0.10` sets the significance threshold (default `0.05`). The admin views highlight p-values and draw lift intervals at the configured level.
+
+### Changed
+- Restore the beta-binomial mixture confidence sequences for finite-sample sequential inference. This replaces the asymptotic method introduced in 0.6.0; low-traffic experiments may again report p = 1.0 and wider lift intervals. The method identifier is `:beta_binomial_mixture_confidence_sequence`.
+
 ## [0.6.0] - 2026-10-17
 
 ### Changed

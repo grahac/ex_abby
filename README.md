@@ -116,6 +116,7 @@ In your host app’s `config/config.exs` (or `dev.exs`, etc.), set:
 config :ex_abby,
   repo: MyApp.Repo,
   control_variation_name: "control",
+  alpha: 0.05,
   bot_detection: [
     enabled: true,
     detectors: [ExAbby.BotDetector.UserAgent],
@@ -128,6 +129,12 @@ Where `MyApp.Repo` is your **Ecto Repo** module.
 `control_variation_name` identifies the variation used as the baseline for
 significance comparisons in the admin results view. It defaults to `"control"`
 when omitted.
+
+`alpha` is the significance threshold: the highest acceptable chance that the
+admin view calls a winner when there is no real difference. It defaults to
+`0.05`. Low-traffic sites that would rather call winners sooner can raise it,
+for example to `0.10` (at most one false winner in ten). Lift intervals are
+drawn at the matching confidence level.
 
 Bot detection is enabled by default. The built-in detector classifies common
 search, AI, social-preview, monitoring, SEO, and generic crawler user agents.
@@ -420,15 +427,12 @@ end
 
 The experiment results view compares every treatment with the variation named
 by `control_variation_name`. It calculates two-sided, anytime-valid p-values by
-inverting an asymptotic confidence sequence for the difference in conversion
-rates (Waudby-Smith et al., 2024). The p-values stay valid no matter how often
-you check the page, so you can stop as soon as a result is significant, provided
-the start date and metrics were not chosen after looking at the results. The
-calculation uses unique converters and trials in the
+inverting beta-binomial mixture confidence sequences for the binary conversion
+rate in each arm. The calculation uses unique converters and trials in the
 selected date range; excluded trials do not contribute to either count.
 
 ExAbby applies Holm's adjustment to reduce false positives from making several
-comparisons. Adjusted values below 0.05 are highlighted. The correction family
+comparisons. Adjusted values below `alpha` (0.05 by default) are highlighted. The correction family
 is **every configured treatment arm across every displayed success metric**,
 including any arm that currently has no data. Either success metric can identify
 a winner; both do not need to be significant. The family is deliberately fixed
@@ -439,11 +443,11 @@ whenever an unrelated empty arm recorded its first trial. The cost is that a
 permanently empty arm — one with weight `0`, or one created after the selected
 range began — still consumes a comparison for each displayed metric.
 
-Each treatment also shows its absolute lift and a pairwise 95% anytime-valid
-confidence interval. **These intervals are not Holm-adjusted.** They answer "how
+Each treatment also shows its absolute lift and a pairwise anytime-valid
+confidence interval at `1 - alpha` (95% by default). **These intervals are not Holm-adjusted.** They answer "how
 large is this arm's lift" rather than "which arms survive the family-wise
 decision", so with several treatments an interval can exclude zero while the
-same row's adjusted p-value sits above 0.05. Read the highlighted p-value for
+same row's adjusted p-value sits above `alpha`. Read the highlighted p-value for
 the decision and the interval for the magnitude.
 
 Sparse conversion counts produce wide intervals rather than unreliable

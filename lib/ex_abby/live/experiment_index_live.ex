@@ -90,10 +90,17 @@ defmodule ExAbby.Live.ExperimentIndexLive do
     |> assign(:reports, reports)
     |> assign(:archived, archived)
     |> assign(:scale, scale)
+    |> assign(:alpha, ExperimentReport.alpha())
   end
 
   defp derive_view(assigns) do
-    assign(assigns, counts: nil, reports: [], archived: [], scale: 1.0)
+    assign(assigns,
+      counts: nil,
+      reports: [],
+      archived: [],
+      scale: 1.0,
+      alpha: ExperimentReport.alpha()
+    )
   end
 
   defp significant?(%{best: nil}), do: false
@@ -310,9 +317,11 @@ defmodule ExAbby.Live.ExperimentIndexLive do
             No experiments match this filter.
           </div>
           <div class="ex-abby-panel__footer">
-            The bar is the best metric's lift against control in points, with its 95% interval, on a shared ±{format_scale(
+            The bar is the best metric's lift against control in points, with its {format_confidence(
+              1 - @alpha
+            )} interval, on a shared ±{format_scale(
               @scale
-            )} point scale. Green marks a Holm-adjusted p below 0.05. Health flags low traffic, a skewed split or an exclusion rate above 10%. Open an experiment for rates, counts and amounts.
+            )} point scale. Green marks a Holm-adjusted p below {format_alpha(@alpha)}. Health flags low traffic, a skewed split or an exclusion rate above 10%. Open an experiment for rates, counts and amounts.
           </div>
         </div>
 

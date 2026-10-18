@@ -7,24 +7,31 @@ defmodule ExAbby.Statistics do
   """
 
   @default_alpha 0.05
-  # The normal mixture is tuned to give the narrowest interval at this many
-  # trials per arm. Width changes slowly away from it, so one value suits both
-  # small and large experiments.
-  @tuning_trials 10_000
-  @tuning_constant -2 * :math.log(@default_alpha) + :math.log(1 - 2 * :math.log(@default_alpha))
+  @mixture_strength 10.0
+  @boundary_epsilon 1.0e-12
+  @p_value_iterations 60
+  @root_iterations 60
+  @lanczos_g 7.0
+  @log_sqrt_two_pi 0.9189385332046727
+  @lanczos_coefficients [
+    0.9999999999998099,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.3234287776531,
+    -176.6150291621406,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.984369578019572e-6,
+    1.5056327351493116e-7
+  ]
 
   @doc """
   Compares each treatment in an experiment summary with the named control.
 
-  The returned p-values invert a two-sided asymptotic confidence sequence for
-  the difference in conversion rates (Waudby-Smith et al., 2024, "Time-uniform
-  central limit theory and asymptotic confidence sequences"). They remain valid
-  under continuous monitoring and are adjusted together with Holm's method.
-  Validity is asymptotic: arm variances are estimated from the data, and A/A
-  simulations at base rates down to 0.2% keep false positives below alpha. The
-  p-value reflects the current look only, so it can rise again after crossing
-  alpha; the decision made when it crossed remains valid. The
-  correction family is every treatment in `summary`, including those returned as
+  The returned p-values invert two-sided beta-binomial mixture confidence
+  sequences for Bernoulli outcomes. They remain valid under continuous
+  monitoring and are adjusted together with Holm's method. The correction family
+  is every treatment in `summary`, including those returned as
   `:insufficient_data`, so that the family is fixed by the experiment's design
   rather than by which arms currently have data.
 
@@ -108,7 +115,7 @@ defmodule ExAbby.Statistics do
                correction: :holm,
                correction_family: metrics,
                correction_family_size: family_size,
-               method: :asymptotic_confidence_sequence,
+               method: :beta_binomial_mixture_confidence_sequence,
                metric: metric
              }}
           end)
@@ -129,20 +136,26 @@ defmodule ExAbby.Statistics do
          treatment_trials,
          treatment_conversions
        ) do
-      lift = treatment_conversions / treatment_trials - control_conversions / control_trials
+      control_rate = control_conversions / control_trials
+      treatment_rate = treatment_conversions / treatment_trials
+      lift = treatment_rate - control_rate
 
-      control_variance = rate_variance(control_trials, control_conversions)
-      treatment_variance = rate_variance(treatment_trials, treatment_conversions)
-      variance = control_variance / control_trials + treatment_variance / treatment_trials
-
-      mixture_variance =
-        @tuning_constant * (control_variance + treatment_variance) / @tuning_trials
-
-      half_width = half_width(variance, mixture_variance, alpha)
-      {lower, upper} = {max(-1.0, lift - half_width), min(1.0, lift + half_width)}
+      {lower, upper} =
+        lift_confidence_sequence(
+          control_trials,
+          control_conversions,
+          treatment_trials,
+          treatment_conversions,
+          alpha
+        )
 
       raw_p_value =
-        min(1.0, :math.exp(-log_likelihood_ratio(lift, variance, mixture_variance)))
+        anytime_p_value(
+          control_trials,
+          control_conversions,
+          treatment_trials,
+          treatment_conversions
+        )
 
       %{
         confidence_interval: %{
@@ -175,31 +188,163 @@ defmodule ExAbby.Statistics do
 
   defp valid_data?(_, _, _, _), do: false
 
-  # Smoothed so an arm with no conversions, or only conversions, still has
-  # positive variance.
-  defp rate_variance(trials, conversions) do
-    rate = (conversions + 1) / (trials + 2)
-    rate * (1.0 - rate)
+  defp anytime_p_value(
+         control_trials,
+         control_conversions,
+         treatment_trials,
+         treatment_conversions
+       ) do
+    if pair_excludes_zero?(
+         control_trials,
+         control_conversions,
+         treatment_trials,
+         treatment_conversions,
+         1.0
+       ) do
+      Enum.reduce(1..@p_value_iterations, {0.0, 1.0}, fn _, {lower, upper} ->
+        midpoint = (lower + upper) / 2.0
+
+        if pair_excludes_zero?(
+             control_trials,
+             control_conversions,
+             treatment_trials,
+             treatment_conversions,
+             midpoint
+           ) do
+          {lower, midpoint}
+        else
+          {midpoint, upper}
+        end
+      end)
+      |> elem(1)
+    else
+      1.0
+    end
   end
 
-  # Likelihood ratio of a N(0, mixture_variance) mixture of lifts against zero
-  # lift. Ville's inequality bounds the chance it ever exceeds 1 / alpha under
-  # the null, which is what makes the p-value safe to read at any time.
-  defp log_likelihood_ratio(lift, variance, mixture_variance) do
-    total = variance + mixture_variance
+  defp pair_excludes_zero?(
+         control_trials,
+         control_conversions,
+         treatment_trials,
+         treatment_conversions,
+         alpha
+       ) do
+    {lower, upper} =
+      lift_confidence_sequence(
+        control_trials,
+        control_conversions,
+        treatment_trials,
+        treatment_conversions,
+        alpha
+      )
 
-    0.5 * :math.log(variance / total) +
-      lift * lift * mixture_variance / (2.0 * variance * total)
+    lower > 0.0 or upper < 0.0
   end
 
-  # The lifts whose likelihood ratio stays below 1 / alpha.
-  defp half_width(variance, mixture_variance, alpha) do
-    total = variance + mixture_variance
+  defp lift_confidence_sequence(
+         control_trials,
+         control_conversions,
+         treatment_trials,
+         treatment_conversions,
+         alpha
+       ) do
+    arm_alpha = alpha / 2.0
 
-    :math.sqrt(
-      variance * total / mixture_variance *
-        (2.0 * :math.log(1.0 / alpha) + :math.log(total / variance))
-    )
+    {control_lower, control_upper} =
+      bernoulli_confidence_sequence(control_trials, control_conversions, arm_alpha)
+
+    {treatment_lower, treatment_upper} =
+      bernoulli_confidence_sequence(treatment_trials, treatment_conversions, arm_alpha)
+
+    {
+      max(-1.0, treatment_lower - control_upper),
+      min(1.0, treatment_upper - control_lower)
+    }
+  end
+
+  defp bernoulli_confidence_sequence(trials, conversions, alpha) do
+    estimate = conversions / trials
+    threshold = :math.log(1.0 / alpha)
+
+    lower =
+      if conversions == 0 do
+        0.0
+      else
+        boundary_root(@boundary_epsilon, estimate, threshold, trials, conversions, :lower)
+      end
+
+    upper =
+      if conversions == trials do
+        1.0
+      else
+        boundary_root(
+          estimate,
+          1.0 - @boundary_epsilon,
+          threshold,
+          trials,
+          conversions,
+          :upper
+        )
+      end
+
+    {lower, upper}
+  end
+
+  defp boundary_root(lower, upper, threshold, trials, conversions, side) do
+    {lower, upper} =
+      Enum.reduce(1..@root_iterations, {lower, upper}, fn _, {lower, upper} ->
+        midpoint = (lower + upper) / 2.0
+        excluded? = log_mixture_e_value(midpoint, trials, conversions) >= threshold
+
+        case {side, excluded?} do
+          {:lower, true} -> {midpoint, upper}
+          {:lower, false} -> {lower, midpoint}
+          {:upper, true} -> {lower, midpoint}
+          {:upper, false} -> {midpoint, upper}
+        end
+      end)
+
+    if side == :lower, do: upper, else: lower
+  end
+
+  # For each hypothesized Bernoulli mean, this is the log likelihood ratio
+  # between a beta mixture of alternatives and that point null. It is a
+  # nonnegative martingale under the point null, so Ville's inequality makes
+  # its inversion a confidence sequence (Howard et al., 2021, two-sided
+  # beta-binomial mixture boundary).
+  defp log_mixture_e_value(mean, trials, conversions) do
+    prior_success = @mixture_strength * mean
+    prior_failure = @mixture_strength * (1.0 - mean)
+
+    log_beta(conversions + prior_success, trials - conversions + prior_failure) -
+      log_beta(prior_success, prior_failure) -
+      conversions * :math.log(mean) -
+      (trials - conversions) * :math.log(1.0 - mean)
+  end
+
+  defp log_beta(left, right) do
+    log_gamma(left) + log_gamma(right) - log_gamma(left + right)
+  end
+
+  defp log_gamma(value) when value < 0.5 do
+    :math.log(:math.pi()) - :math.log(:math.sin(:math.pi() * value)) -
+      log_gamma(1.0 - value)
+  end
+
+  defp log_gamma(value) do
+    shifted = value - 1.0
+    [first | rest] = @lanczos_coefficients
+
+    series =
+      rest
+      |> Enum.with_index(1)
+      |> Enum.reduce(first, fn {coefficient, index}, sum ->
+        sum + coefficient / (shifted + index)
+      end)
+
+    scale = shifted + @lanczos_g + 0.5
+
+    @log_sqrt_two_pi + (shifted + 0.5) * :math.log(scale) - scale + :math.log(series)
   end
 
   defp validate_alpha!(alpha) when is_number(alpha) and alpha > 0 and alpha <= 1, do: :ok
