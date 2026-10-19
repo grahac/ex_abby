@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-18
+
 ### Added
 - `config :ex_abby, alpha: 0.10` sets the significance threshold (default `0.05`). The admin views highlight p-values and draw lift intervals at the configured level.
 
@@ -107,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed formatting of trial count display
 - Improved handling when experiment does not exist
 
-[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/grahac/ex_abby/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/grahac/ex_abby/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/grahac/ex_abby/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/grahac/ex_abby/compare/v0.5.1...v0.5.2
