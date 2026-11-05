@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require Ecto 3.14.3 or newer within 3.x to fix unbounded query-cache growth (CVE-2026-118391).
 - Require Phoenix HTML 4.4.0 or newer within 4.x to fix attribute-name HTML injection (CVE-2026-117645). These requirements also apply when ExAbby is used as a dependency; a library lockfile alone does not protect consuming applications.
 
+### Changed
+- Applications using Ecto below 3.14.3 or Phoenix HTML 3.x must upgrade those dependencies before adopting 0.6.2. The security requirements narrow the previously supported dependency ranges.
+
 ## [0.6.1] - 2026-10-18
 
 ### Added
