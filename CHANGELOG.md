@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-05
+
+### Security
+- Require Ecto 3.14.3 or newer within 3.x to fix unbounded query-cache growth (CVE-2026-118391).
+- Require Phoenix HTML 4.4.0 or newer within 4.x to fix attribute-name HTML injection (CVE-2026-117645). These requirements also apply when ExAbby is used as a dependency; a library lockfile alone does not protect consuming applications.
+
 ## [0.6.1] - 2026-10-18
 
 ### Added
@@ -109,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed formatting of trial count display
 - Improved handling when experiment does not exist
 
-[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/grahac/ex_abby/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/grahac/ex_abby/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/grahac/ex_abby/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/grahac/ex_abby/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/grahac/ex_abby/compare/v0.5.2...v0.5.3
