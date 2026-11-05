@@ -87,7 +87,7 @@ Coming in the future
    ```elixir
    defp deps do
      [
-       {:ex_abby, "~> 0.4.0"}
+       {:ex_abby, "~> 0.6.2"}
      ]
    end
    ```
@@ -96,7 +96,7 @@ Coming in the future
    ```elixir
    defp deps do
      [
-       {:ex_abby, github: "grahac/ex_abby", tag: "v0.4.0"}
+       {:ex_abby, github: "grahac/ex_abby", tag: "v0.6.2"}
      ]
    end
    ```
@@ -227,7 +227,7 @@ fields. Fresh installations do not need this separate migration because
 1. **Update the dependency** in `mix.exs`:
 
    ```elixir
-   {:ex_abby, "~> 0.4.0"}
+   {:ex_abby, "~> 0.6.2"}
    ```
 
 2. **Generate a migration**:

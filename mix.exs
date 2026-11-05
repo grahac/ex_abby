@@ -4,7 +4,7 @@ defmodule ExAbby.MixProject do
   def project do
     [
       app: :ex_abby,
-      version: "0.6.1",
+      version: "0.6.2",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -22,7 +22,9 @@ defmodule ExAbby.MixProject do
 
   defp deps do
     [
+      {:ecto, "~> 3.14 and >= 3.14.3"},
       {:ecto_sql, "~> 3.10"},
+      {:phoenix_html, "~> 4.4"},
       {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.14"},
       {:telemetry, "~> 1.0"},
