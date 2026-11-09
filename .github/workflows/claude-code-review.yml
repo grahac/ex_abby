@@ -12,11 +12,11 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Skip Dependabot-authored PRs: 'Secret source: Dependabot' withholds repository
+    # secrets, so CLAUDE_CODE_OAUTH_TOKEN resolves empty and the job dies in ~10s.
+    # (Dependabot's login appears as 'dependabot[bot]' in the pull_request event;
+    #  'app/dependabot' is also excluded defensively.)
+    if: github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.user.login != 'app/dependabot'
 
     runs-on: ubuntu-latest
     permissions:
